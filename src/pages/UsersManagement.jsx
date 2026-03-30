@@ -1,0 +1,416 @@
+import { useState } from "react";
+import {
+  Search, Edit, Shield, ShieldCheck, UserX, UserCheck as UserCheckIcon,
+  Users, Save, ChevronRight, Plus, Building, Trash2, KeyRound
+} from "lucide-react";
+import { useApp } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
+import { Badge, EmptyState, Modal, Input, Select, Btn } from "../components/ui";
+import { supabaseAdminClient } from "../lib/supabase";
+
+export default function UsersView() {
+  const { users, items, models, brands, tickets, areas, createArea, updateArea, deleteArea, updateUserProfile, toggleUserActive, showToast, t } = useApp();
+  const { profile: myProfile } = useAuth();
+  const [search, setSearch] = useState("");
+  const [editModal, setEditModal] = useState(false);
+  const [editUser, setEditUser] = useState(null);
+  const [form, setForm] = useState({ firstName: "", lastName: "", employee_number: "", department: "", role: "user" });
+  const [detailUser, setDetailUser] = useState(null);
+  const [createModal, setCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({ firstName: "", lastName: "", employee_number: "", email: "", password: "", department: "", role: "user" });
+  const [creating, setCreating] = useState(false);
+  
+  const [areaModal, setAreaModal] = useState(false);
+  const [areaForm, setAreaForm] = useState({ name: "" });
+  const [editingArea, setEditingArea] = useState(null);
+
+  const [resetModal, setResetModal] = useState(false);
+  const [newPass, setNewPass] = useState("");
+  const [resetting, setResetting] = useState(false);
+
+  const handleCreateUser = async () => {
+    if (!createForm.firstName || !createForm.lastName || !createForm.email || !createForm.password) {
+      showToast(t("mandatoryFields"), "error");
+      return;
+    }
+    if (createForm.password.length < 6) {
+      showToast(t("passwordLength"), "error");
+      return;
+    }
+    
+    setCreating(true);
+    try {
+      const full_name = `${createForm.firstName.trim()} ${createForm.lastName.trim()}`;
+      const { error } = await supabaseAdminClient.auth.signUp({
+        email: createForm.email,
+        password: createForm.password,
+        options: {
+          data: {
+            full_name,
+            role: createForm.role,
+            department: createForm.department,
+            employee_number: createForm.employee_number,
+          }
+        }
+      });
+      if (error) throw error;
+      
+      showToast(t("userCreated"), "success");
+      setCreateModal(false);
+      setCreateForm({ firstName: "", lastName: "", employee_number: "", email: "", password: "", department: "", role: "user" });
+    } catch (err) {
+      showToast(t("errorCreatingUser") + ": " + err.message, "error");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const filtered = users.filter(u =>
+    `${u.full_name} ${u.email} ${u.department}`.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const openEdit = (u) => {
+    setEditUser(u);
+    const names = u.full_name ? u.full_name.split(' ') : [];
+    const firstName = names[0] || '';
+    const lastName = names.slice(1).join(' ');
+    setForm({ firstName, lastName, employee_number: u.employee_number || "", department: u.department || "", role: u.role });
+    setEditModal(true);
+  };
+
+  const saveUser = async () => {
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      showToast(t("mandatoryFields").split(",")[0], "error");
+      return;
+    }
+    const full_name = `${form.firstName.trim()} ${form.lastName.trim()}`;
+    await updateUserProfile(editUser.id, { 
+      full_name, 
+      employee_number: form.employee_number, 
+      department: form.department, 
+      role: form.role 
+    });
+    setEditModal(false);
+  };
+
+  const handleResetPassword = async () => {
+    if (newPass.length < 6) {
+      showToast(t("passwordLength"), "error");
+      return;
+    }
+    setResetting(true);
+    try {
+      // requires SERVICE_ROLE_KEY in supabaseAdminClient
+      const { error } = await supabaseAdminClient.auth.admin.updateUserById(editUser.id, {
+        password: newPass
+      });
+      if (error) throw error;
+      showToast(t("passwordResetSuccess"), "success");
+      setResetModal(false);
+      setNewPass("");
+    } catch (err) {
+      const isKeyError = err.message.includes("apiKey") || err.message.includes("service role");
+      showToast(isKeyError ? t("adminKeyRequired") : t("passwordResetError") + ": " + err.message, "error");
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const saveArea = async () => {
+    if (!areaForm.name) return;
+    if (editingArea) { await updateArea(editingArea.id, areaForm.name); }
+    else { await createArea(areaForm.name); }
+    setAreaModal(false);
+  };
+
+  const getAvatar = (u) => {
+    if (u.avatar_url) return <img src={u.avatar_url} alt="" className="w-full h-full object-cover rounded-xl" />;
+    const initials = u.full_name ? u.full_name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() : "??";
+    return <span className="text-sm font-bold">{initials}</span>;
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-100 mb-1">{t("organizationTitle")}</h2>
+          <p className="text-sm text-slate-500">{t("usersAreasSummary").replace("{{users}}", users.length).replace("{{areas}}", areas.length)}</p>
+        </div>
+        <div className="flex gap-2">
+          {myProfile?.role === "admin" && (
+            <>
+              <Btn variant="secondary" onClick={() => { setEditingArea(null); setAreaForm({ name: "" }); setAreaModal(true); }}><Building size={15} /> {t("areas")}</Btn>
+              <Btn onClick={() => setCreateModal(true)}><Plus size={15} /> {t("newUser")}</Btn>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("searchUsersPlaceholder")} className="w-full pl-10 pr-4 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50" />
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-xl border border-slate-700/50 bg-[#151A24] p-4 text-center">
+          <p className="text-2xl font-bold text-slate-100">{users.filter(u => u.role === "admin").length}</p>
+          <p className="text-xs text-slate-500">{t("adminsStat")}</p>
+        </div>
+        <div className="rounded-xl border border-slate-700/50 bg-[#151A24] p-4 text-center">
+          <p className="text-2xl font-bold text-slate-100">{users.filter(u => u.role === "user").length}</p>
+          <p className="text-xs text-slate-500">{t("standardUsersStat")}</p>
+        </div>
+        <div className="rounded-xl border border-slate-700/50 bg-[#151A24] p-4 text-center">
+          <p className="text-2xl font-bold text-slate-100">{users.filter(u => u.is_active === false).length}</p>
+          <p className="text-xs text-slate-500">{t("disabledStat")}</p>
+        </div>
+      </div>
+
+      {/* User list */}
+      <div className="space-y-2">
+        {filtered.map(u => {
+          const userItems = items.filter(i => i.user_id === u.id);
+          const userTickets = tickets.filter(t => t.user_id === u.id);
+          const isMe = u.id === myProfile?.id;
+          return (
+            <div key={u.id} className={`flex items-center gap-4 p-4 rounded-2xl bg-[#151A24] border transition-all cursor-pointer hover:border-slate-600/50 ${u.is_active === false ? "opacity-50 border-slate-800/30" : "border-slate-700/50"}`} onClick={() => setDetailUser(u)}>
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${u.role === "admin" ? "bg-violet-500/20 text-violet-400" : "bg-blue-500/20 text-blue-400"}`}>
+                {getAvatar(u)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-slate-200 truncate">{u.full_name}</p>
+                  {isMe && <Badge color="blue">{t("me")}</Badge>}
+                  {u.is_active === false && <Badge color="red">{t("inactive")}</Badge>}
+                </div>
+                <p className="text-xs text-slate-500 truncate">
+                  {u.email} {u.employee_number ? `· ${t("employeeNumberAbbr")}: ${u.employee_number}` : ""} {u.department ? `· ${u.department}` : ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge color={u.role === "admin" ? "purple" : "gray"}>
+                  {u.role === "admin" ? <><ShieldCheck size={11} /> {t("admin")}</> : t("user")}
+                </Badge>
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs text-slate-400">{t("assetsCount").replace("{{count}}", userItems.length)}</p>
+                  <p className="text-xs text-slate-500">{t("ticketsCount").replace("{{count}}", userTickets.length)}</p>
+                </div>
+                <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => openEdit(u)} className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-500 hover:text-slate-200"><Edit size={14} /></button>
+                  {!isMe && (
+                    <button
+                      onClick={() => toggleUserActive(u.id, !u.is_active)}
+                      className={`p-1.5 rounded-lg hover:bg-slate-700/50 ${u.is_active !== false ? "text-slate-500 hover:text-red-400" : "text-slate-500 hover:text-emerald-400"}`}
+                    >
+                      {u.is_active !== false ? <UserX size={14} /> : <UserCheckIcon size={14} />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && <EmptyState icon={Users} title={t("noResults")} subtitle={t("noResults")} />}
+      </div>
+
+      {/* Edit Modal */}
+      <Modal open={editModal} onClose={() => setEditModal(false)} title={t("editUserTitle")}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Input label={t("firstName")} value={form.firstName} onChange={e => setForm(p => ({ ...p, firstName: e.target.value }))} placeholder="Ej: Juan Antonio" />
+            <Input label={t("lastName")} value={form.lastName} onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} placeholder="Ej: Pérez Gómez" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label={t("employeeNumber")} value={form.employee_number} onChange={e => setForm(p => ({ ...p, employee_number: e.target.value }))} placeholder="Ej: 15482" />
+            <Input label={t("department")} value={form.department} onChange={e => setForm(p => ({ ...p, department: e.target.value }))} placeholder="Ej: Ingeniería" />
+          </div>
+          <Select 
+            label={t("role")} 
+            options={[
+              { value: "user", label: t("standardUsersStat").slice(0,-1) }, 
+              { value: "rrhh", label: t("rrhh") },
+              { value: "admin", label: t("admin") }
+            ]} 
+            value={form.role} 
+            onChange={e => setForm(p => ({ ...p, role: e.target.value }))} 
+          />
+          <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
+            <p className="text-xs text-amber-400">
+              <strong>{t("admin")}:</strong> {t("adminDescription")}
+            </p>
+            <p className="text-xs text-amber-400 mt-1">
+              <strong>{t("rrhh")}:</strong> {t("rrhhDescription")}
+            </p>
+            <p className="text-xs text-amber-400 mt-1">
+              <strong>{t("user")}:</strong> {t("userDescription")}
+            </p>
+          </div>
+          <div className="flex justify-between items-center pt-2">
+            <Btn 
+              variant="secondary" 
+              className="!text-amber-500 !bg-amber-500/5 hover:!bg-amber-500/10 border-amber-500/20"
+              onClick={() => setResetModal(true)}
+            >
+              <KeyRound size={14} /> {t("resetPassword")}
+            </Btn>
+            <div className="flex gap-2">
+              <Btn variant="secondary" onClick={() => setEditModal(false)}>{t("cancel")}</Btn>
+              <Btn onClick={saveUser}><Save size={15} /> {t("save")}</Btn>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Password Reset Modal */}
+      <Modal open={resetModal} onClose={() => setResetModal(false)} title={t("resetPassword")}>
+        <div className="space-y-4">
+          <p className="text-xs text-slate-400">
+            {t("user")}: <span className="text-slate-200 font-medium">{editUser?.full_name}</span> ({editUser?.email})
+          </p>
+          <Input 
+            type="password"
+            label={t("newPassword")} 
+            value={newPass} 
+            onChange={e => setNewPass(e.target.value)} 
+            placeholder="••••••••" 
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="secondary" onClick={() => setResetModal(false)}>{t("cancel")}</Btn>
+            <Btn onClick={handleResetPassword} disabled={resetting}>
+              {resetting ? "..." : <Save size={15} />} {t("confirm")}
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Detail Modal */}
+      <Modal open={!!detailUser} onClose={() => setDetailUser(null)} title={detailUser?.full_name} wide>
+        {detailUser && (() => {
+          const userItems = items.filter(i => i.user_id === detailUser.id);
+          const userTickets = tickets.filter(t => t.user_id === detailUser.id);
+          return (
+            <div className="space-y-5">
+              <div className="flex items-center gap-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-lg font-bold ${detailUser.role === "admin" ? "bg-violet-500/20 text-violet-400" : "bg-blue-500/20 text-blue-400"}`}>
+                  {getAvatar(detailUser)}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-100">{detailUser.full_name}</h3>
+                  <p className="text-sm text-slate-500">{detailUser.email}</p>
+                  <p className="text-xs font-mono text-slate-500 mt-1">{detailUser.employee_number ? `No. Empleado: ${detailUser.employee_number}` : ""}</p>
+                  <div className="flex gap-2 mt-2">
+                    <Badge color={detailUser.role === "admin" ? "purple" : "gray"}>{t(detailUser.role)}</Badge>
+                    {detailUser.department && <Badge color="blue">{detailUser.department}</Badge>}
+                    {detailUser.is_active === false && <Badge color="red">{t("inactive")}</Badge>}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h5 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">{t("assignmentsTitle")} ({userItems.length})</h5>
+                {userItems.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {userItems.map(item => {
+                      const model = models.find(m => m.id === item.model_id);
+                      const brand = model ? brands.find(b => b.id === model.brand_id) : null;
+                      return (
+                        <div key={item.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-800/20 border border-slate-700/20">
+                          <div className="w-8 h-8 rounded-lg bg-slate-800/60 border border-slate-700/30 flex items-center justify-center overflow-hidden">
+                            {model?.photo ? <img src={model.photo} alt="" className="w-full h-full object-cover" /> : <span className="text-[10px] text-slate-500">{model?.type?.slice(0, 2)}</span>}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-slate-200 truncate">{brand?.name} {model?.name}</p>
+                            <p className="text-xs font-mono text-slate-500">{item.serial}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <p className="text-sm text-slate-500">{t("noAvailableAssets")}</p>}
+              </div>
+
+              <div>
+                <h5 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Tickets ({userTickets.length})</h5>
+                {userTickets.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {userTickets.slice(0, 5).map(t => (
+                      <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-800/20 border border-slate-700/20">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-slate-200 truncate">{t.title}</p>
+                          <p className="text-xs text-slate-500">{new Date(t.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <Badge color={t.status === "Abierto" ? "red" : t.status === "Proceso" ? "yellow" : "green"}>{t.status}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="text-sm text-slate-500">{t("noResults")}</p>}
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
+
+      {/* Create Modal */}
+      <Modal open={createModal} onClose={() => setCreateModal(false)} title={t("newUser")} wide>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Input label={t("firstName")} required value={createForm.firstName} onChange={e => setCreateForm(p => ({ ...p, firstName: e.target.value }))} placeholder="Ej: Juan Antonio" />
+            <Input label={t("lastName")} required value={createForm.lastName} onChange={e => setCreateForm(p => ({ ...p, lastName: e.target.value }))} placeholder="Ej: Pérez Gómez" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label={t("email")} required type="email" value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))} placeholder={t("emailPlaceholder")} />
+            <Input label={t("password")} required type="password" value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} placeholder={t("passwordPlaceholder")} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label={t("employeeNumber")} value={createForm.employee_number} onChange={e => setCreateForm(p => ({ ...p, employee_number: e.target.value }))} placeholder="Ej: 15482" />
+            <Input label={t("department")} value={createForm.department} onChange={e => setCreateForm(p => ({ ...p, department: e.target.value }))} placeholder="Ej: Ingeniería" />
+          </div>
+          <Select 
+            label={t("role")} 
+            options={[
+              { value: "user", label: t("standardUsersStat").slice(0,-1) }, 
+              { value: "rrhh", label: t("rrhh") },
+              { value: "admin", label: t("admin") }
+            ]} 
+            value={createForm.role} 
+            onChange={e => setCreateForm(p => ({ ...p, role: e.target.value }))} 
+          />
+          
+          <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/20">
+            <p className="text-xs text-blue-400">
+              {t("userCreationNotice")}
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="secondary" onClick={() => setCreateModal(false)}>{t("cancel")}</Btn>
+            <Btn onClick={handleCreateUser} disabled={creating}>{creating ? t("uploading").replace('...', '') : <><Save size={15} /> {t("register")}</>}</Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Areas Modal */}
+      <Modal open={areaModal} onClose={() => setAreaModal(false)} title={t("areasManagement")}>
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <input value={areaForm.name} onChange={e => setAreaForm({ name: e.target.value })} placeholder={t("areaPlaceholder")} className="flex-1 px-3 py-2.5 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50" />
+            <Btn onClick={saveArea}>{editingArea ? t("update") : <><Plus size={14} /> {t("add")}</>}</Btn>
+          </div>
+          <div className="space-y-1.5">
+            {areas.map(a => (
+              <div key={a.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-800/30 border border-slate-700/30">
+                <span className="text-sm text-slate-200">{a.name}</span>
+                <div className="flex gap-1">
+                  <button onClick={() => { setEditingArea(a); setAreaForm({ name: a.name }); }} className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400"><Edit size={13} /></button>
+                  <button onClick={() => deleteArea(a.id)} className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-red-400"><Trash2 size={13} /></button>
+                </div>
+              </div>
+            ))}
+            {areas.length === 0 && <p className="text-xs text-slate-500 text-center py-4">{t("noAreasRegistered")}</p>}
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
