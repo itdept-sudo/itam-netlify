@@ -76,7 +76,7 @@ export function AppProvider({ children }) {
     try {
       const promises = [
         supabase.from("items").select("*").order("created_at", { ascending: false }).limit(200), // LIMIT for performance
-        supabase.from("tickets").select("*").order("created_at", { ascending: false }).limit(50), 
+        supabase.from("tickets").select("*, ticket_comments(count)").order("created_at", { ascending: false }).limit(50), 
         supabase.from("profiles").select("*").order("full_name"),
         supabase.from("models").select("*").order("name"),
         supabase.from("asset_relations").select("*"),
@@ -262,17 +262,55 @@ export function AppProvider({ children }) {
     showToast("ticketCreated"); return data;
   };
   const updateTicketStatus = async (id, status) => {
+    const ticket = tickets.find(t => t.id === id);
+    const oldStatus = ticket?.status;
     const { error } = await supabase.from("tickets").update({ status }).eq("id", id);
     if (error) { showToast(error.message, "error"); return; }
     setTickets(p => p.map(t => t.id === id ? { ...t, status } : t));
     showToast(`Ticket → ${status}`);
+
+    if (ticket) {
+      const u = users.find(x => x.id === ticket.user_id);
+      if (u?.email) {
+        fetch("/api/send-ticket-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: u.email, userName: u.full_name, ticketTitle: ticket.title, oldStatus, newStatus: status, type: "status" })
+        }).catch(e => console.error("Email err:", e));
+      }
+    }
   };
   const addTicketComment = async (ticketId, text, isStaff, userId) => {
     const { data, error } = await supabase.from("ticket_comments")
       .insert({ ticket_id: ticketId, user_id: userId, text, is_staff: isStaff }).select().single();
     if (error) { showToast(error.message, "error"); return null; }
-    setTickets(p => p.map(t => t.id === ticketId ? { ...t, comments: [...t.comments, data] } : t));
-    showToast("commentAdded"); return data;
+    setTickets(p => p.map(t => {
+      if (t.id === ticketId) {
+        return {
+          ...t,
+          comments: [...(t.comments || []), data],
+          ticket_comments: [{ count: (t.ticket_comments?.[0]?.count || 0) + 1 }]
+        };
+      }
+      return t;
+    }));
+    showToast("commentAdded"); 
+
+    // Notify user if staff replied
+    if (isStaff) {
+      const ticket = tickets.find(t => t.id === ticketId);
+      if (ticket) {
+        const u = users.find(x => x.id === ticket.user_id);
+        if (u?.email) {
+          fetch("/api/send-ticket-email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: u.email, userName: u.full_name, ticketTitle: ticket.title, commentText: text, type: "comment" })
+          }).catch(e => console.error("Email err:", e));
+        }
+      }
+    }
+    return data;
   };
 
   // ── Users (admin) ──

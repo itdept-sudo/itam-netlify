@@ -109,7 +109,7 @@ export default function UserPortal() {
               </div>
               <div className="flex items-center gap-2 text-slate-500">
                 <MessageSquare size={14} />
-                <span className="text-xs">{ticket.comments?.length || 0}</span>
+                <span className="text-xs">{ticket.ticket_comments?.[0]?.count || 0}</span>
               </div>
               <ChevronRight size={16} className="text-slate-600" />
             </button>

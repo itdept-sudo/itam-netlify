@@ -4,22 +4,51 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { to, userName, ticketId, ticketTitle, oldStatus, newStatus } = req.body;
+    const { to, userName, ticketTitle, oldStatus, newStatus, commentText, type = "status" } = req.body;
 
-    if (!to || !ticketTitle || !newStatus) {
+    if (!to || !ticketTitle) {
       return res.status(400).json({ error: "Missing fields" });
     }
 
-    // Adapt environment variables for Vercel
-    const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://itam-desk-prosper.vercel.app";
     const resendKey = process.env.RESEND_API_KEY;
     const emailFrom = process.env.EMAIL_FROM || "ITAM Desk <noreply@prosper-mfg.com>";
+    const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://itam-desk.vercel.app";
 
-    const statusEmoji = { Abierto: "🔴", Proceso: "🟡", Cerrado: "🟢" };
-    const statusColor = { Abierto: "#F87171", Proceso: "#FBBF24", Cerrado: "#34D399" };
-    const statusBg = { Abierto: "rgba(239,68,68,0.1)", Proceso: "rgba(245,158,11,0.1)", Cerrado: "rgba(16,185,129,0.1)" };
+    const isStatus = type === "status";
+    const subject = isStatus 
+      ? `📋 Ticket actualizado: ${ticketTitle}`
+      : `💬 Nueva respuesta en: ${ticketTitle}`;
 
-    const subject = `${statusEmoji[newStatus] || "📋"} Ticket actualizado: ${ticketTitle}`;
+    const statusObj = {
+      Abierto: { emoji: "🔴", color: "#EF4444", bg: "rgba(239,68,68,0.1)" },
+      Proceso: { emoji: "🟡", color: "#F59E0B", bg: "rgba(245,158,11,0.1)" },
+      Cerrado: { emoji: "🟢", color: "#10B981", bg: "rgba(16,185,129,0.1)" },
+    };
+
+    const sNew = statusObj[newStatus] || { emoji: "📋", color: "#3B82F6", bg: "rgba(59,130,246,0.1)" };
+    const sOld = statusObj[oldStatus] || { emoji: "", color: "#64748B", bg: "rgba(100,116,139,0.1)" };
+
+    const contentHtml = isStatus ? `
+      <div style="background:#0B0E14;border-radius:12px;padding:16px;margin-bottom:24px;">
+        <p style="margin:0 0 12px;font-size:13px;color:#64748B;">El estado de tu ticket ha cambiado</p>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div style="flex:1;text-align:center;padding:8px;background:${sOld.bg};border-radius:8px;">
+            <p style="margin:0;font-size:11px;color:#94A3B8;">Anterior</p>
+            <p style="margin:4px 0 0;font-size:13px;color:${sOld.color};font-weight:600;">${oldStatus || "—"}</p>
+          </div>
+          <span style="color:#475569;font-size:18px;">→</span>
+          <div style="flex:1;text-align:center;padding:8px;background:${sNew.bg};border-radius:8px;">
+            <p style="margin:0;font-size:11px;color:#94A3B8;">Nuevo</p>
+            <p style="margin:4px 0 0;font-size:13px;color:${sNew.color};font-weight:600;">${newStatus}</p>
+          </div>
+        </div>
+      </div>
+    ` : `
+      <div style="background:#0B0E14;border-radius:12px;padding:16px;margin-bottom:24px;border-left:4px solid #3B82F6;">
+        <p style="margin:0 0 12px;font-size:13px;color:#64748B;">Soporte IT ha respondido:</p>
+        <p style="margin:0;font-size:14px;color:#E2E8F0;line-height:1.6;font-style:italic;">"${commentText}"</p>
+      </div>
+    `;
 
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
@@ -30,23 +59,14 @@ export default async function handler(req, res) {
   </div>
   <div style="padding:32px 24px;">
     <p style="margin:0 0 8px;font-size:14px;color:#94A3B8;">Hola, ${userName || "Usuario"}</p>
-    <h2 style="margin:0 0 24px;font-size:18px;color:#F1F5F9;">Tu ticket ha sido actualizado</h2>
-    <div style="background:#0B0E14;border-radius:12px;padding:16px;margin-bottom:24px;">
-      <p style="margin:0 0 8px;font-size:13px;color:#64748B;">Ticket</p>
-      <p style="margin:0 0 16px;font-size:15px;color:#E2E8F0;font-weight:600;">${ticketTitle}</p>
-      <div style="display:flex;gap:12px;align-items:center;">
-        <div style="flex:1;text-align:center;padding:8px;background:${statusBg[oldStatus] || "rgba(239,68,68,0.1)"};border-radius:8px;">
-          <p style="margin:0;font-size:11px;color:#94A3B8;">Anterior</p>
-          <p style="margin:4px 0 0;font-size:13px;color:${statusColor[oldStatus] || "#F87171"};font-weight:600;">${oldStatus || "—"}</p>
-        </div>
-        <span style="color:#475569;font-size:18px;">→</span>
-        <div style="flex:1;text-align:center;padding:8px;background:${statusBg[newStatus]};border-radius:8px;">
-          <p style="margin:0;font-size:11px;color:#94A3B8;">Nuevo</p>
-          <p style="margin:4px 0 0;font-size:13px;color:${statusColor[newStatus]};font-weight:600;">${newStatus}</p>
-        </div>
-      </div>
-    </div>
-    <a href="${siteUrl}" style="display:block;text-align:center;background:#3B82F6;color:white;padding:12px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Ver mi ticket</a>
+    <h2 style="margin:0 0 24px;font-size:18px;color:#F1F5F9;">${isStatus ? "Actualización de Ticket" : "Nueva Respuesta de Soporte"}</h2>
+    
+    <p style="margin:0 0 4px;font-size:12px;color:#64748B;text-transform:uppercase;">Asunto</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#E2E8F0;font-weight:600;">${ticketTitle}</p>
+
+    ${contentHtml}
+
+    <a href="${siteUrl}" style="display:block;text-align:center;background:#3B82F6;color:white;padding:12px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Ver Ticket en ITAM Desk</a>
   </div>
   <div style="padding:16px 24px;border-top:1px solid #1E2533;text-align:center;">
     <p style="margin:0;font-size:11px;color:#475569;">Prosper Manufacturing · IT Department</p>
@@ -68,7 +88,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, provider: "resend", id: result.id });
     }
 
-    console.log("EMAIL NOTIFICATION (no RESEND_API_KEY):", { to, subject });
+    console.log(`EMAIL NOTIFICATION (${type}):`, { to, subject, commentText });
     return res.status(200).json({ success: true, provider: "logged", note: "Set RESEND_API_KEY for delivery" });
 
   } catch (err) {

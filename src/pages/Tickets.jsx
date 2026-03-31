@@ -24,7 +24,7 @@ export default function TicketsView() {
   const fetchPagedTickets = async () => {
     setLoading(true);
     try {
-      let query = supabase.from("tickets").select("*", { count: "exact" });
+      let query = supabase.from("tickets").select("*, ticket_comments(count)", { count: "exact" });
       if (statusFilter !== "all") query = query.eq("status", statusFilter);
       
       const { data, count, error } = await query
@@ -70,7 +70,11 @@ export default function TicketsView() {
     if (!comment.trim()) return;
     const data = await addTicketComment(ticketId, comment, true, user.id);
     if (data && detailTicket?.id === ticketId) {
-      setDetailTicket(prev => prev ? { ...prev, comments: [...prev.comments, data] } : prev);
+      setDetailTicket(prev => prev ? { ...prev, comments: [...(prev.comments || []), data] } : prev);
+      setPagedTickets(p => p.map(t => t.id === ticketId ? { 
+        ...t, 
+        ticket_comments: [{ count: (t.ticket_comments?.[0]?.count || 0) + 1 }] 
+      } : t));
     }
     setComment("");
   };
@@ -108,7 +112,7 @@ export default function TicketsView() {
                 <div className="flex items-center gap-2 mb-0.5"><p className="text-sm font-medium text-slate-200 truncate">{ticket.title}</p><StatusBadge status={ticket.status} type="ticket" /></div>
                 <p className="text-xs text-slate-500 truncate">{u?.full_name || "—"} {model ? `· ${model.name}` : ""} · {new Date(ticket.created_at).toLocaleDateString()}</p>
               </div>
-              <div className="flex items-center gap-2 text-slate-500"><MessageSquare size={14} /><span className="text-xs">{ticket.comments?.length || 0}</span></div>
+              <div className="flex items-center gap-2 text-slate-500"><MessageSquare size={14} /><span className="text-xs">{ticket.ticket_comments?.[0]?.count || 0}</span></div>
               <ChevronRight size={16} className="text-slate-600" />
             </button>
           );
