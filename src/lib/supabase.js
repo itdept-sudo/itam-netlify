@@ -4,28 +4,38 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
 
-if (!supabaseUrl || !supabaseAnonKey) {
+export const isConfigured = Boolean(supabaseUrl && supabaseAnonKey && supabaseUrl.includes('supabase.co'));
+
+if (!isConfigured) {
   console.error(
-    '⚠️ ITAM Desk: Missing Supabase env vars!\n' +
-    'Expected: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY\n' +
-    'Current URL value:', supabaseUrl ? 'SET' : 'EMPTY',
-    'Current KEY value:', supabaseAnonKey ? 'SET' : 'EMPTY'
+    '⚠️ ITAM Desk: Configuration Error!\n' +
+    'Missing or invalid: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY\n' +
+    'Current URL value:', supabaseUrl ? (supabaseUrl.includes('supabase.co') ? 'SET' : 'INVALID_FORMAT') : 'EMPTY',
+    '\nCurrent KEY value:', supabaseAnonKey ? 'SET' : 'EMPTY'
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});
+// Create client normally - it will be empty or fail gracefully with our UI check
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co', 
+  supabaseAnonKey || 'placeholder', 
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
+  }
+);
 
-// Admin client should use Service Role Key for administrative tasks (like resetting passwords)
-export const supabaseAdminClient = createClient(supabaseUrl, supabaseServiceRoleKey || supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-    detectSessionInUrl: false,
-  },
-});
+export const supabaseAdminClient = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co', 
+  supabaseServiceRoleKey || supabaseAnonKey || 'placeholder', 
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  }
+);

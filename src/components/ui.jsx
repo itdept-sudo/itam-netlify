@@ -94,7 +94,7 @@ export function Modal({ open, onClose, title, children, wide }) {
       <div
         className={`relative bg-[#151A24] border border-slate-700/50 rounded-2xl shadow-2xl ${
           wide ? "max-w-3xl" : "max-w-lg"
-        } w-full max-h-[85vh] overflow-hidden flex flex-col animate-fade-in`}
+        } w-[95%] sm:w-full max-h-[90vh] overflow-hidden flex flex-col animate-fade-in`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/50">

@@ -4,14 +4,17 @@ import { STATUSES, TICKET_STATUSES } from "../data/constants";
 import { KpiCard, MiniBar, StatusBadge } from "../components/ui";
 
 export default function Dashboard() {
-  const { items, tickets, models, users, dataLoading, t } = useApp();
+  const { items, tickets, models, users, dataLoading, dashboardStats, t } = useApp();
 
   if (dataLoading) return <div className="flex items-center justify-center py-32"><Loader2 size={32} className="animate-spin text-blue-400" /></div>;
 
+  // Use filtered data from limited sets for remaining charts
   const statusCounts = STATUSES.reduce((a, s) => ({ ...a, [s]: items.filter(i => i.status === s).length }), {});
   const ticketCounts = TICKET_STATUSES.reduce((a, s) => ({ ...a, [s]: tickets.filter(t => t.status === s).length }), {});
+  
+  // For types, we use the limited items list which is fine for a "snapshot"
   const typeCounts = {};
-  items.forEach(item => {
+  items.slice(0, 100).forEach(item => {
     const model = models.find(m => m.id === item.model_id);
     if (model) typeCounts[model.type] = (typeCounts[model.type] || 0) + 1;
   });
@@ -23,11 +26,11 @@ export default function Dashboard() {
         <p className="text-sm text-slate-500">{t("generalSummary")}</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard icon={Boxes} label={t("totalAssets")} value={items.length} trend={t("totalModels").replace("{{count}}", models.length)} color="blue" />
-        <KpiCard icon={UserCheck} label={t("Asignado")} value={statusCounts.Asignado} trend={t("availableTrend").replace("{{count}}", statusCounts.Disponible)} color="green" />
-        <KpiCard icon={Wrench} label={t("maintenance")} value={statusCounts.Mantenimiento} trend={t("bajaTrend").replace("{{count}}", statusCounts.Baja)} color="yellow" />
-        <KpiCard icon={TicketCheck} label={t("openTicketsStat")} value={ticketCounts.Abierto + ticketCounts.Proceso} trend={t("closedTrend").replace("{{count}}", ticketCounts.Cerrado)} color="purple" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard icon={Boxes} label={t("totalAssets")} value={dashboardStats.items} trend={t("totalModels").replace("{{count}}", models.length)} color="blue" />
+        <KpiCard icon={UserCheck} label={t("Asignado")} value={dashboardStats.active} trend={t("availableTrend").replace("{{count}}", statusCounts.Disponible || 0)} color="green" />
+        <KpiCard icon={Wrench} label={t("maintenance")} value={statusCounts.Mantenimiento || 0} trend={t("bajaTrend").replace("{{count}}", statusCounts.Baja || 0)} color="yellow" />
+        <KpiCard icon={TicketCheck} label={t("openTicketsStat")} value={dashboardStats.pending} trend={t("closedTrend").replace("{{count}}", ticketCounts.Cerrado || 0)} color="purple" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -45,7 +48,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-slate-700/50 bg-[#151A24] p-5">
           <h3 className="text-sm font-semibold text-slate-300 mb-4">{t("recentTickets")}</h3>
           <div className="space-y-2">

@@ -30,7 +30,7 @@ export function getNavItems(isAdmin, isRRHH, t) {
   return USER_NAV;
 }
 
-export default function Sidebar({ active, onChange, collapsed, onToggle }) {
+export default function Sidebar({ active, onChange, collapsed, onToggle, isOpen, onClose }) {
   const { isAdmin, isRRHH, profile, signOut } = useAuth();
   const { t, language, toggleLanguage } = useApp();
   const navItems = getNavItems(isAdmin, isRRHH, t);
@@ -41,24 +41,37 @@ export default function Sidebar({ active, onChange, collapsed, onToggle }) {
     return <span className="text-[10px] font-bold">{initials}</span>;
   };
 
+  const handleNavClick = (id) => {
+    onChange(id);
+    if (onClose) onClose(); // Close drawer on mobile after selection
+  };
+
   return (
-    <aside className={`${collapsed ? "w-[68px]" : "w-60"} h-screen bg-[#0D1117] border-r border-slate-800/60 flex flex-col transition-all duration-300 shrink-0`}>
-      <div className="px-4 py-5 flex items-center gap-3 border-b border-slate-800/40">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shrink-0">
-          <Monitor size={18} className="text-white" />
+    <aside className={`
+      ${collapsed ? "w-[68px]" : "w-60"} 
+      h-screen bg-[#0D1117] border-r border-slate-800/60 flex flex-col transition-all duration-300 shrink-0
+      fixed inset-y-0 left-0 z-50 lg:static lg:translate-x-0
+      ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+    `}>
+      <div className="px-4 py-5 flex items-center justify-between border-b border-slate-800/40">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shrink-0">
+            <Monitor size={18} className="text-white" />
+          </div>
+          {(!collapsed || isOpen) && (
+            <span className="text-base font-bold text-slate-100 tracking-tight">
+              ITAM<span className="text-blue-400">desk</span>
+            </span>
+          )}
         </div>
-        {!collapsed && (
-          <span className="text-base font-bold text-slate-100 tracking-tight">
-            ITAM<span className="text-blue-400">desk</span>
-          </span>
-        )}
+        {/* Mobile close button could go here, but Backdrop usually handles it */}
       </div>
 
       <nav className="flex-1 px-2.5 py-4 space-y-0.5 overflow-y-auto">
         {navItems.map(item => (
           <button
             key={item.id}
-            onClick={() => onChange(item.id)}
+            onClick={() => handleNavClick(item.id)}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
               active === item.id
                 ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
@@ -67,14 +80,14 @@ export default function Sidebar({ active, onChange, collapsed, onToggle }) {
             title={collapsed ? item.label : undefined}
           >
             <item.icon size={18} />
-            {!collapsed && <span>{item.label}</span>}
+            {(!collapsed || isOpen) && <span>{item.label}</span>}
           </button>
         ))}
       </nav>
 
       {/* User info & logout */}
       <div className="px-2.5 pb-3 space-y-1">
-        {!collapsed && profile && (
+        {(!collapsed || isOpen) && profile && (
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-800/20 border border-slate-700/20 mb-1">
             <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isAdmin ? "bg-violet-500/20 text-violet-400" : isRRHH ? "bg-emerald-500/20 text-emerald-400" : "bg-blue-500/20 text-blue-400"}`}>
               {getAvatar()}
@@ -94,7 +107,7 @@ export default function Sidebar({ active, onChange, collapsed, onToggle }) {
           title={collapsed ? (language === "es" ? "English" : "Español") : undefined}
         >
           <Languages size={18} />
-          {!collapsed && (
+          {(!collapsed || isOpen) && (
             <div className="flex-1 flex items-center justify-between">
               <span>{language === "es" ? "Español" : "English"}</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 border border-slate-700 uppercase">
@@ -110,11 +123,11 @@ export default function Sidebar({ active, onChange, collapsed, onToggle }) {
           title={collapsed ? t("logout") : undefined}
         >
           <LogOut size={18} />
-          {!collapsed && <span>{t("logout")}</span>}
+          {(!collapsed || isOpen) && <span>{t("logout")}</span>}
         </button>
         <button
           onClick={onToggle}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-slate-600 hover:text-slate-400 transition-all"
+          className="hidden lg:flex w-full items-center gap-3 px-3 py-2 rounded-xl text-sm text-slate-600 hover:text-slate-400 transition-all"
         >
           {collapsed ? <ChevronRight size={16} /> : <><ChevronDown size={16} /> <span className="text-xs">{t("collapse")}</span></>}
         </button>

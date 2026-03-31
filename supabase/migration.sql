@@ -64,9 +64,22 @@ BEGIN
   VALUES (
     NEW.id,
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data ->> 'full_name', NEW.raw_user_meta_data ->> 'name', SPLIT_PART(NEW.email, '@', 1)),
-    CASE WHEN NEW.email = 'itdept@prosper-mfg.com' THEN 'admin' ELSE COALESCE(NEW.raw_user_meta_data ->> 'role', 'user') END,
-    COALESCE(NEW.raw_user_meta_data ->> 'avatar_url', ''),
+    COALESCE(
+      NEW.raw_user_meta_data ->> 'full_name', 
+      NEW.raw_user_meta_data ->> 'name', 
+      SPLIT_PART(NEW.email, '@', 1)
+    ),
+    -- Force admin role for the master email
+    CASE 
+      WHEN NEW.email = 'itdept@prosper-mfg.com' THEN 'admin' 
+      ELSE COALESCE(NEW.raw_user_meta_data ->> 'role', 'user') 
+    END,
+    -- Handle both Supabase generic and Google-specific avatar fields
+    COALESCE(
+      NEW.raw_user_meta_data ->> 'avatar_url', 
+      NEW.raw_user_meta_data ->> 'picture', 
+      ''
+    ),
     COALESCE(NEW.raw_user_meta_data ->> 'employee_number', ''),
     COALESCE(NEW.raw_user_meta_data ->> 'department', '')
   );

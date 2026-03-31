@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabase";
 
 const AuthContext = createContext();
@@ -7,69 +7,100 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const profileIdRef = useRef(null);
+  const fetchingProfileRef = useRef(null);
+
+
 
   const fetchProfile = useCallback(async (userId, retries = 3) => {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single();
-        if (data) {
-          setProfile(data);
-          return data;
-        }
-        if (error) {
-          console.warn(`Profile fetch attempt ${i + 1}/${retries}:`, error.message);
-          // Profile might not exist yet (trigger delay), wait and retry
-          if (i < retries - 1) await new Promise((r) => setTimeout(r, 1000));
-        }
-      } catch (err) {
-        console.error("Profile fetch error:", err);
-      }
+    // Avoid redundant parallel fetches for the same user
+    if (fetchingProfileRef.current === userId) {
+      console.log("AuthContext: Profile fetch already in progress for", userId);
+      return;
     }
+    
+    fetchingProfileRef.current = userId;
+    console.log("AuthContext: Fetching profile for", userId);
+
+    try {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", userId)
+            .single();
+
+          if (data) {
+            console.log("AuthContext: Profile loaded successfully");
+            setProfile(data);
+            profileIdRef.current = userId;
+            return data;
+          }
+          if (error) {
+            console.warn(`Profile fetch attempt ${i + 1}/${retries}:`, error.message);
+            // Profile might not exist yet (trigger delay), wait and retry
+            if (i < retries - 1) await new Promise((r) => setTimeout(r, 1500));
+          }
+        } catch (err) {
+          console.error("Profile fetch iteration error:", err);
+        }
+      }
+    } finally {
+      fetchingProfileRef.current = null;
+    }
+    
+    console.warn("AuthContext: Profile fetch failed after retries");
     return null;
   }, []);
-
+  
   useEffect(() => {
-    // Safety timeout - never stay loading forever
-    const safetyTimer = setTimeout(() => {
-      setLoading(false);
-    }, 8000);
+    let isMounted = true;
+    console.log("AuthContext: Starting unified initialization (Listener only)...");
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      if (s?.user) {
-        fetchProfile(s.user.id).finally(() => {
-          clearTimeout(safetyTimer);
-          setLoading(false);
-        });
-      } else {
-        clearTimeout(safetyTimer);
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) {
+        console.warn("AuthContext: Global safety timeout reached");
         setLoading(false);
       }
-    }).catch((err) => {
-      console.error("getSession error:", err);
-      clearTimeout(safetyTimer);
-      setLoading(false);
-    });
+    }, 10000); 
 
-    // Listen for auth changes
+    // Listen for auth changes (v2 fires INITIAL_SESSION on subscribe)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, s) => {
+      async (event, s) => {
+        if (!isMounted) return;
+        
+        console.log(`AuthContext: Auth event: ${event} for ${s?.user?.id || 'none'}`);
         setSession(s);
+        
         if (s?.user) {
-          await fetchProfile(s.user.id);
+          // Wrapped in a timeout to prevent hanging the entire loading state
+          const fetchPromise = fetchProfile(s.user.id);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Timeout")), 5000)
+          );
+
+          try {
+            await Promise.race([fetchPromise, timeoutPromise]);
+            console.log("AuthContext: Profile fetch resolved");
+          } catch (err) {
+            console.error("AuthContext: Profile fetch timed out or critical error:", err.message);
+          }
         } else {
           setProfile(null);
+          profileIdRef.current = null;
         }
-        setLoading(false);
+        
+        if (isMounted) {
+          console.log("AuthContext: Setting loading: false");
+          setLoading(false);
+          clearTimeout(safetyTimer);
+        }
       }
     );
 
     return () => {
+      isMounted = false;
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };

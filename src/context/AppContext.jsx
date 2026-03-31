@@ -9,14 +9,15 @@ export function AppProvider({ children }) {
   const { session } = useAuth();
   const [items, setItems] = useState([]);
   const [models, setModels] = useState([]);
-  const [brands, setBrands] = useState([]);
-  const [assetTypes, setAssetTypes] = useState([]);
-  const [areas, setAreas] = useState([]);
+  const [brands, setBrands] = useState(() => JSON.parse(localStorage.getItem("itam_brands") || "[]"));
+  const [assetTypes, setAssetTypes] = useState(() => JSON.parse(localStorage.getItem("itam_types") || "[]"));
+  const [areas, setAreas] = useState(() => JSON.parse(localStorage.getItem("itam_areas") || "[]"));
   const [users, setUsers] = useState([]);
   const [relations, setRelations] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [movements, setMovements] = useState([]);
   const [toast, setToast] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState({ items: 0, tickets: 0, pending: 0, active: 0 });
   const [dataLoading, setDataLoading] = useState(true);
   const [language, setLanguage] = useState(() => localStorage.getItem("itam_lang") || "es");
 
@@ -35,52 +36,104 @@ export function AppProvider({ children }) {
   }, [language]);
   const clearToast = useCallback(() => setToast(null), []);
 
-  const fetchAll = useCallback(async () => {
+  const syncMetadata = useCallback(async () => {
     if (!session) return;
-    setDataLoading(true);
     try {
-      const [bRes, mRes, aRes, arRes, iRes, uRes, rRes, tRes, mvRes] = await Promise.all([
+      const [bRes, aRes, arRes] = await Promise.all([
         supabase.from("brands").select("*").order("name"),
-        supabase.from("models").select("*").order("name"),
         supabase.from("asset_types").select("*").order("name"),
         supabase.from("areas").select("*").order("name"),
-        supabase.from("items").select("*").order("created_at", { ascending: false }),
-        supabase.from("profiles").select("*").order("full_name"),
-        supabase.from("asset_relations").select("*"),
-        supabase.from("tickets").select("*").order("created_at", { ascending: false }),
-        supabase.from("movements").select("*").order("created_at", { ascending: false }),
       ]);
-      setBrands(bRes.data || []);
-      setModels(mRes.data || []);
-      setAssetTypes(aRes.data || []);
-      setAreas(arRes.data || []);
-      setItems(iRes.data || []);
-      setUsers(uRes.data || []);
-      setRelations(rRes.data || []);
-      setMovements(mvRes.data || []);
-
-      if (tRes.data?.length) {
-        const { data: comments } = await supabase
-          .from("ticket_comments").select("*")
-          .in("ticket_id", tRes.data.map(t => t.id))
-          .order("created_at");
-        setTickets(tRes.data.map(t => ({ ...t, comments: (comments || []).filter(c => c.ticket_id === t.id) })));
-      } else {
-        setTickets([]);
-      }
-    } catch (err) { console.error("Fetch error:", err); }
-    setDataLoading(false);
+      if (bRes.data) { setBrands(bRes.data); localStorage.setItem("itam_brands", JSON.stringify(bRes.data)); }
+      if (aRes.data) { setAssetTypes(aRes.data); localStorage.setItem("itam_types", JSON.stringify(aRes.data)); }
+      if (arRes.data) { setAreas(arRes.data); localStorage.setItem("itam_areas", JSON.stringify(arRes.data)); }
+    } catch (err) { console.error("Metadata sync error:", err); }
   }, [session]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  const fetchDashboardStats = useCallback(async () => {
+    if (!session) return;
+    try {
+      const [itemsCount, ticketsCount, pendingCount, activeCount] = await Promise.all([
+        supabase.from("items").select("*", { count: "exact", head: true }),
+        supabase.from("tickets").select("*", { count: "exact", head: true }),
+        supabase.from("tickets").select("*", { count: "exact", head: true }).in("status", ["Abierto", "Proceso"]),
+        supabase.from("items").select("*", { count: "exact", head: true }).eq("status", "Asignado"),
+      ]);
+      setDashboardStats({
+        items: itemsCount.count || 0,
+        tickets: ticketsCount.count || 0,
+        pending: pendingCount.count || 0,
+        active: activeCount.count || 0
+      });
+    } catch (err) { console.error("Stats error:", err); }
+  }, [session]);
+
+  const fetchAll = useCallback(async (options = {}) => {
+    if (!session) return;
+    const { showLoader = false, forceMetadata = false } = options;
+    if (showLoader) setDataLoading(true);
+
+    try {
+      const promises = [
+        supabase.from("items").select("*").order("created_at", { ascending: false }).limit(200), // LIMIT for performance
+        supabase.from("tickets").select("*").order("created_at", { ascending: false }).limit(50), 
+        supabase.from("profiles").select("*").order("full_name"),
+        supabase.from("models").select("*").order("name"),
+        supabase.from("asset_relations").select("*"),
+        supabase.from("movements").select("*").order("created_at", { ascending: false }).limit(100),
+      ];
+
+      if (forceMetadata || !brands.length) {
+        promises.push(syncMetadata());
+      }
+
+      const [iRes, tRes, uRes, mRes, rRes, mvRes] = await Promise.all(promises);
+
+      if (iRes.data) setItems(iRes.data);
+      if (tRes.data) setTickets(tRes.data); // Simplified tickets for now, comments paged later
+      if (uRes.data) setUsers(uRes.data);
+      if (mRes.data) setModels(mRes.data);
+      if (rRes.data) setRelations(rRes.data);
+      if (mvRes.data) setMovements(mvRes.data);
+      
+      await fetchDashboardStats();
+    } catch (err) { 
+      console.error("Fetch error:", err); 
+    } finally {
+      setDataLoading(false);
+    }
+  }, [session, brands.length, syncMetadata, fetchDashboardStats]);
+
+  useEffect(() => { 
+    if (session) {
+      if (brands.length > 0) {
+        // We have cached metadata, show app faster
+        setDataLoading(false);
+        fetchAll({ showLoader: false });
+      } else {
+        fetchAll({ showLoader: true }); 
+      }
+    }
+  }, [session]);
 
   useEffect(() => {
     if (!session) return;
+    
+    let timeout;
+    const debouncedFetch = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => fetchAll({ showLoader: false }), 1500);
+    };
+
     const ch = supabase.channel("itam-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, () => fetchAll())
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "ticket_comments" }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, debouncedFetch)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "ticket_comments" }, debouncedFetch)
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+
+    return () => { 
+      if (timeout) clearTimeout(timeout);
+      supabase.removeChannel(ch); 
+    };
   }, [session, fetchAll]);
 
   // ── Brands CRUD ──
@@ -239,7 +292,7 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       items, models, brands, assetTypes, areas, users, relations, tickets, movements,
-      dataLoading, showToast, clearToast, toast, fetchAll,
+      dataLoading, showToast, clearToast, toast, fetchAll, dashboardStats, fetchDashboardStats, syncMetadata,
       language, t, toggleLanguage,
       createBrand, updateBrand, deleteBrand,
       createAssetType, updateAssetType, deleteAssetType,

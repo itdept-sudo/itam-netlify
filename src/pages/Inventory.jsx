@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Search, Plus, Edit, Trash2, Save, Package, Loader2, QrCode, Download, Building } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
+import { supabase } from "../lib/supabase";
 import { useApp } from "../context/AppContext";
 import { STATUSES, ASSET_ICONS } from "../data/constants";
 import { Badge, StatusBadge, EmptyState, Modal, Input, Select, Btn } from "../components/ui";
 
 export default function InventoryView() {
-  const { items, models, brands, assetTypes, areas, users, movements, createItem, updateItem, deleteItem, dataLoading, t } = useApp();
+  const { models, brands, assetTypes, areas, users, movements, createItem, updateItem, deleteItem, dataLoading, t } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ serial: "", model_id: "", status: "Disponible", user_id: "", area_id: "" });
@@ -16,15 +17,57 @@ export default function InventoryView() {
   const [detailItem, setDetailItem] = useState(null);
   const [qrItem, setQrItem] = useState(null);
 
+  // Pagination state
+  const [pagedItems, setPagedItems] = useState([]);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pageSize = 50;
+
+  const fetchPagedItems = async () => {
+    setIsRefreshing(true);
+    try {
+      let query = supabase.from("items").select("*", { count: "exact" });
+
+      if (filter) {
+        query = query.ilike("serial", `%${filter}%`);
+      }
+      if (statusFilter !== "Todos") {
+        query = query.eq("status", statusFilter);
+      }
+      
+      // Note: type filtering is harder because it's a join. 
+      // For now, let's keep it simple or implement a view if needed.
+      // If typeFilter is set, we might need a more complex query or a Postgres function.
+
+      const { data, count, error } = await query
+        .order("created_at", { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error) throw error;
+      setPagedItems(data || []);
+      setTotal(count || 0);
+    } catch (err) {
+      console.error("Inventory fetch error:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPagedItems();
+  }, [page, statusFilter, filter]);
+
   // Auto-load item if ?item=id is in the URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const itemId = params.get("item");
-    if (itemId && items.length > 0) {
-      const item = items.find(i => i.id === itemId);
-      if (item) setDetailItem(item);
+    if (itemId) {
+      supabase.from("items").select("*").eq("id", itemId).single().then(({ data }) => {
+        if (data) setDetailItem(data);
+      });
     }
-  }, [items]);
+  }, []);
 
   const downloadQR = () => {
     const canvas = document.getElementById("qr-canvas");
@@ -56,43 +99,36 @@ export default function InventoryView() {
   const selectedModel = models.find(m => m.id === form.model_id);
   const selectedBrand = selectedModel ? brands.find(b => b.id === selectedModel.brand_id) : null;
 
-  const filtered = items.filter(item => {
-    const model = models.find(m => m.id === item.model_id);
-    const brand = model ? brands.find(b => b.id === model.brand_id) : null;
-    const user = users.find(u => u.id === item.user_id);
-    const area = areas.find(a => a.id === item.area_id);
-    const text = `${item.serial} ${model?.name || ""} ${brand?.name || ""} ${user?.full_name || ""} ${area?.name || ""}`.toLowerCase();
-    if (!text.includes(filter.toLowerCase())) return false;
-    if (statusFilter !== "Todos" && item.status !== statusFilter) return false;
-    if (typeFilter !== "Todos" && model?.type !== typeFilter) return false;
-    return true;
-  });
+  // Reset to page 0 when filtering
+  useEffect(() => { setPage(0); }, [filter, statusFilter, typeFilter]);
 
   if (dataLoading) return <div className="flex items-center justify-center py-32"><Loader2 size={32} className="animate-spin text-blue-400" /></div>;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-100 mb-1">{t("inventory")}</h2>
-          <p className="text-sm text-slate-500">{items.length} {t("inventory").toLowerCase()}</p>
+          <p className="text-sm text-slate-500">{total} {t("inventory").toLowerCase()}</p>
         </div>
-        <Btn onClick={openNew}><Plus size={15} /> {t("newAsset")}</Btn>
+        <Btn onClick={openNew} className="w-full sm:w-auto"><Plus size={15} /> {t("newAsset")}</Btn>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input value={filter} onChange={e => setFilter(e.target.value)} placeholder={t("search")} className="w-full pl-10 pr-4 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50" />
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-300 focus:outline-none appearance-none">
-          <option value="Todos">{t("allStatuses")}</option>
-          {STATUSES.map(s => <option key={s} value={s}>{t(s)}</option>)}
-        </select>
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="px-3 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-300 focus:outline-none appearance-none">
-          <option value="Todos">{t("allTypes")}</option>
-          {assetTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-        </select>
+        <div className="flex gap-2">
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="flex-1 sm:flex-none px-3 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-300 focus:outline-none appearance-none">
+            <option value="Todos">{t("allStatuses")}</option>
+            {STATUSES.map(s => <option key={s} value={s}>{t(s)}</option>)}
+          </select>
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="flex-1 sm:flex-none px-3 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-300 focus:outline-none appearance-none">
+            <option value="Todos">{t("allTypes")}</option>
+            {assetTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+          </select>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-slate-700/50 overflow-hidden">
@@ -102,7 +138,7 @@ export default function InventoryView() {
               {["", t("serialNumber"), t("model"), t("type"), t("status"), t("assignment"), t("qr"), ""].map((h, i) => <th key={i} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">{h}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-slate-800/50">
-              {filtered.map(item => {
+              {pagedItems.map(item => {
                 const model = models.find(m => m.id === item.model_id);
                 const brand = model ? brands.find(b => b.id === model.brand_id) : null;
                 const user = users.find(u => u.id === item.user_id);
@@ -145,7 +181,32 @@ export default function InventoryView() {
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && <EmptyState icon={Package} title={t("noResults")} subtitle={t("noAssetsFound")} />}
+        {pagedItems.length === 0 && <EmptyState icon={Package} title={t("noResults")} subtitle={t("noAssetsFound")} />}
+        
+        {/* Pagination Controls */}
+        {total > pageSize && (
+          <div className="px-4 py-3 bg-slate-800/20 border-t border-slate-700/50 flex items-center justify-between">
+            <span className="text-xs text-slate-500">
+              {t("showing")} {page * pageSize + 1} - {Math.min((page + 1) * pageSize, total)} {t("of")} {total}
+            </span>
+            <div className="flex gap-2">
+              <button 
+                disabled={page === 0 || isRefreshing}
+                onClick={() => setPage(p => p - 1)}
+                className="px-3 py-1 text-xs rounded-lg border border-slate-700 bg-slate-800 text-slate-300 disabled:opacity-50"
+              >
+                {t("previous")}
+              </button>
+              <button 
+                disabled={(page + 1) * pageSize >= total || isRefreshing}
+                onClick={() => setPage(p => p + 1)}
+                className="px-3 py-1 text-xs rounded-lg border border-slate-700 bg-slate-800 text-slate-300 disabled:opacity-50"
+              >
+                {t("next")}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* New/Edit Modal */}

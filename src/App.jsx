@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Bell, Loader2, AlertTriangle, RefreshCw, LogOut } from "lucide-react";
+import { Bell, Menu, Loader2, AlertTriangle, RefreshCw, LogOut, ShieldAlert, ExternalLink } from "lucide-react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AppProvider, useApp } from "./context/AppContext";
+import { supabase, isConfigured } from "./lib/supabase";
 import { Toast } from "./components/ui";
 import Sidebar, { getNavItems } from "./components/Sidebar";
 import LoginPage from "./pages/Login";
@@ -47,6 +48,7 @@ function AppShell() {
     return null;
   });
   const [collapsed, setCollapsed] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // When role resolves or changes, set appropriate default page
   useEffect(() => {
@@ -82,7 +84,15 @@ function AppShell() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0B0E14] text-slate-200 overflow-hidden">
+    <div className="flex h-screen bg-[#0B0E14] text-slate-200 overflow-hidden relative">
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       <Sidebar
         active={currentPage}
         onChange={(id) => {
@@ -91,19 +101,29 @@ function AppShell() {
         }}
         collapsed={collapsed}
         onToggle={() => setCollapsed(!collapsed)}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
-      <main className="flex-1 overflow-y-auto">
-        <header className="sticky top-0 z-20 flex items-center justify-between px-8 py-4 bg-[#0B0E14]/80 backdrop-blur-xl border-b border-slate-800/40">
-          <h1 className="text-sm font-semibold text-slate-300">
-            {currentNav?.label}
-          </h1>
+      <main className="flex-1 overflow-y-auto w-full">
+        <header className="sticky top-0 z-20 flex items-center justify-between px-4 lg:px-8 py-4 bg-[#0B0E14]/80 backdrop-blur-xl border-b border-slate-800/40">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-xl hover:bg-slate-800/40 text-slate-400"
+            >
+              <Bell size={20} className="rotate-90" /> {/* temporary hamburger substitute or use Menu if available */}
+            </button>
+            <h1 className="text-sm font-semibold text-slate-300">
+              {currentNav?.label}
+            </h1>
+          </div>
           <div className="flex items-center gap-3">
             <button className="relative p-2 rounded-xl hover:bg-slate-800/40 text-slate-400">
               <Bell size={18} />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500" />
             </button>
-            <div className="w-px h-6 bg-slate-800" />
+            <div className="hidden sm:block w-px h-6 bg-slate-800" />
             <div className="flex items-center gap-2">
               <div
                 className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-white overflow-hidden ${
@@ -124,7 +144,7 @@ function AppShell() {
                   getInitials()
                 )}
               </div>
-              <div className="hidden sm:block">
+              <div className="hidden md:block">
                 <p className="text-sm font-medium text-slate-200">
                   {profile?.full_name || "..."}
                 </p>
@@ -135,7 +155,7 @@ function AppShell() {
             </div>
           </div>
         </header>
-        <div className="p-6 lg:p-8">
+        <div className="p-4 lg:p-8">
           <Page />
         </div>
       </main>
@@ -268,6 +288,61 @@ function ErrorContent() {
   );
 }
 
+function ConfigError() {
+  return (
+    <div className="min-h-screen bg-[#0B0E14] flex items-center justify-center p-6 text-center">
+      <div className="max-w-md w-full bg-[#151A24] border border-red-500/20 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-orange-500" />
+        
+        <div className="mb-6 relative">
+          <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto">
+            <ShieldAlert size={32} className="text-red-400" />
+          </div>
+          <div className="absolute inset-0 bg-red-400/20 blur-2xl rounded-full" />
+        </div>
+
+        <h1 className="text-xl font-bold text-slate-100 mb-2">Configuración Incompleta</h1>
+        <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+          No se detectaron las credenciales de Supabase necesarias para conectar la aplicación.
+        </p>
+
+        <div className="space-y-3 text-left bg-slate-900/50 rounded-2xl p-5 border border-slate-800 mb-8">
+          <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Variables faltantes:</p>
+          <ul className="space-y-2">
+            <li className="flex items-center gap-2 text-xs font-mono text-red-300">
+              <span className="w-1 h-1 bg-red-400 rounded-full" /> VITE_SUPABASE_URL
+            </li>
+            <li className="flex items-center gap-2 text-xs font-mono text-red-300">
+              <span className="w-1 h-1 bg-red-400 rounded-full" /> VITE_SUPABASE_ANON_KEY
+            </li>
+          </ul>
+        </div>
+
+        <div className="space-y-4">
+          <a 
+            href="https://vercel.com" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="w-full py-3.5 px-4 bg-white text-black rounded-xl text-sm font-bold transition-all hover:bg-slate-100 flex items-center justify-center gap-2 shadow-lg"
+          >
+            Configurar en Vercel <ExternalLink size={14} />
+          </a>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full py-3.5 px-4 bg-slate-800 text-slate-300 rounded-xl text-sm font-bold transition-all hover:bg-slate-700 border border-slate-700/50"
+          >
+            Reintentar conexión
+          </button>
+        </div>
+
+        <p className="mt-8 text-[10px] text-slate-600">
+          Asegúrate de que las variables estén marcadas para el entorno de <span className="text-slate-400 font-bold">Preview</span> y <span className="text-slate-400 font-bold">Production</span>.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [hasError, setHasError] = useState(false);
 
@@ -283,6 +358,8 @@ export default function App() {
       window.removeEventListener("unhandledrejection", handler);
     };
   }, []);
+
+  if (!isConfigured) return <ConfigError />;
 
   return (
     <AuthProvider>
