@@ -1,7 +1,12 @@
+import nodemailer from "nodemailer";
+
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
     const { to, userName, ticketTitle, oldStatus, newStatus, commentText, type = "status" } = req.body;
@@ -10,23 +15,43 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing fields" });
     }
 
-    const resendKey = process.env.RESEND_API_KEY;
-    const emailFrom = process.env.EMAIL_FROM || "ITAM Desk <noreply@prosper-mfg.com>";
-    const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://itam-desk.vercel.app";
+    const smtpHost     = process.env.SMTP_HOST;
+    const smtpPort     = parseInt(process.env.SMTP_PORT || "587");
+    const smtpUser     = process.env.SMTP_USER;
+    const smtpPass     = process.env.SMTP_PASS;
+    const emailFrom    = process.env.EMAIL_FROM || `"ITAM Desk" <${smtpUser}>`;
+    const siteUrl      = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.SITE_URL || "https://itam-desk.vercel.app";
+
+    // Si no hay config, solo logea y devuelve OK (no rompe la app)
+    if (!smtpHost || !smtpUser || !smtpPass) {
+      console.log("EMAIL (no SMTP config):", { to, ticketTitle, type });
+      return res.status(200).json({
+        success: true, provider: "logged",
+        note: "Configura SMTP_HOST, SMTP_USER y SMTP_PASS en Vercel"
+      });
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465, // true para SSL (465), false para TLS (587)
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    const statusColors = {
+      Abierto: { color: "#EF4444", bg: "rgba(239,68,68,0.1)" },
+      Proceso:  { color: "#F59E0B", bg: "rgba(245,158,11,0.1)" },
+      Cerrado:  { color: "#10B981", bg: "rgba(16,185,129,0.1)" },
+    };
+    const sNew = statusColors[newStatus] || { color: "#3B82F6", bg: "rgba(59,130,246,0.1)" };
+    const sOld = statusColors[oldStatus] || { color: "#64748B", bg: "rgba(100,116,139,0.1)" };
 
     const isStatus = type === "status";
-    const subject = isStatus 
+    const subject = isStatus
       ? `📋 Ticket actualizado: ${ticketTitle}`
       : `💬 Nueva respuesta en: ${ticketTitle}`;
-
-    const statusObj = {
-      Abierto: { emoji: "🔴", color: "#EF4444", bg: "rgba(239,68,68,0.1)" },
-      Proceso: { emoji: "🟡", color: "#F59E0B", bg: "rgba(245,158,11,0.1)" },
-      Cerrado: { emoji: "🟢", color: "#10B981", bg: "rgba(16,185,129,0.1)" },
-    };
-
-    const sNew = statusObj[newStatus] || { emoji: "📋", color: "#3B82F6", bg: "rgba(59,130,246,0.1)" };
-    const sOld = statusObj[oldStatus] || { emoji: "", color: "#64748B", bg: "rgba(100,116,139,0.1)" };
 
     const contentHtml = isStatus ? `
       <div style="background:#0B0E14;border-radius:12px;padding:16px;margin-bottom:24px;">
@@ -60,12 +85,9 @@ export default async function handler(req, res) {
   <div style="padding:32px 24px;">
     <p style="margin:0 0 8px;font-size:14px;color:#94A3B8;">Hola, ${userName || "Usuario"}</p>
     <h2 style="margin:0 0 24px;font-size:18px;color:#F1F5F9;">${isStatus ? "Actualización de Ticket" : "Nueva Respuesta de Soporte"}</h2>
-    
     <p style="margin:0 0 4px;font-size:12px;color:#64748B;text-transform:uppercase;">Asunto</p>
     <p style="margin:0 0 24px;font-size:15px;color:#E2E8F0;font-weight:600;">${ticketTitle}</p>
-
     ${contentHtml}
-
     <a href="${siteUrl}" style="display:block;text-align:center;background:#3B82F6;color:white;padding:12px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Ver Ticket en ITAM Desk</a>
   </div>
   <div style="padding:16px 24px;border-top:1px solid #1E2533;text-align:center;">
@@ -74,25 +96,12 @@ export default async function handler(req, res) {
 </div>
 </body></html>`;
 
-    if (resendKey) {
-      const resApi = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: emailFrom, to: [to], subject, html }),
-      });
-      const result = await resApi.json();
-      if (!resApi.ok) {
-        console.error("Resend error:", result);
-        return res.status(500).json({ error: "Email failed", details: result });
-      }
-      return res.status(200).json({ success: true, provider: "resend", id: result.id });
-    }
+    await transporter.sendMail({ from: emailFrom, to, subject, html });
 
-    console.log(`EMAIL NOTIFICATION (${type}):`, { to, subject, commentText });
-    return res.status(200).json({ success: true, provider: "logged", note: "Set RESEND_API_KEY for delivery" });
+    return res.status(200).json({ success: true, provider: "smtp" });
 
   } catch (err) {
-    console.error("Function error:", err);
+    console.error("send-ticket-email error:", err);
     return res.status(500).json({ error: err.message });
   }
 }

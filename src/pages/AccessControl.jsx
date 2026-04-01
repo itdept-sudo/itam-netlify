@@ -198,9 +198,8 @@ export default function AccessControl() {
 
       if (reqError) throw reqError;
 
-      // 3. Send the email via our new API
-      const siteUrl = window.location.origin;
-      const res = await fetch("/api/send-access-email", {
+      // 3. Enviar correo (no-bloqueante: si falla el correo, la solicitud igual se guarda)
+      fetch("/api/send-access-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -213,11 +212,9 @@ export default function AccessControl() {
           puestoEncargado: altaPuesto,
           requesterName: profile.full_name
         })
-      });
+      }).catch(e => console.warn("Correo no enviado:", e));
 
-      if (!res.ok) throw new Error("No se pudo enviar el correo de aprobación.");
-
-      showToast("Alta registrada. Se ha enviado correo a IT para su autorización.", "success");
+      showToast("Alta registrada. IT será notificado para autorizar los accesos.", "success");
       
       // Reset
       setAltaEmployeeNumber("");
@@ -259,7 +256,8 @@ export default function AccessControl() {
       
       if (reqError) throw reqError;
 
-      const res = await fetch("/api/send-access-email", {
+      // Enviar correo (no-bloqueante)
+      fetch("/api/send-access-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -272,11 +270,9 @@ export default function AccessControl() {
           puestoEncargado: actPuesto,
           requesterName: profile.full_name
         })
-      });
+      }).catch(e => console.warn("Correo no enviado:", e));
 
-      if (!res.ok) throw new Error("No se pudo enviar el correo de aprobación.");
-
-      showToast("Actualización solicitada. Correo enviado a IT.", "success");
+      showToast("Actualización solicitada. IT será notificado para autorizar los accesos.", "success");
       setSelectedDoors([]);
       setActPuesto("");
       setFoundUser(null);
