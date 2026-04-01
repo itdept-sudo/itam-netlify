@@ -61,10 +61,10 @@ export default async function handler(req, res) {
       ? `https://${process.env.VERCEL_URL}`
       : process.env.SITE_URL || "http://localhost:5173").replace(/\/$/, "");
 
-    // Asegurar que el token no sea nulo ni indefinido antes de armar la URL
-    const safeToken = String(token || "NO_TOKEN_FOUND");
-    const approveUrl = `${siteUrl}/approve-access?token=${safeToken}&action=approve`;
-    const denyUrl    = `${siteUrl}/approve-access?token=${safeToken}&action=deny`;
+    // Construcción defensiva de la URL - Action primero para evitar que se corte el token
+    const safeToken = encodeURIComponent(token || "NO_TOKEN");
+    const approveUrl = `${siteUrl}/approve-access?action=approve&token=${safeToken}`;
+    const denyUrl    = `${siteUrl}/approve-access?action=deny&token=${safeToken}`;
 
     console.log("DEBUG: URLs Generadas:", { approveUrl, denyUrl });
     const doorsListHtml = requestedDoors
@@ -111,8 +111,8 @@ export default async function handler(req, res) {
       </div>` : ""}
     </div>
     <div style="display:flex;gap:16px;">
-      <a href="${approveUrl}" style="display:inline-block;flex:1;text-align:center;background:#10B981;color:white;padding:14px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">✅ Autorizar</a>
-      <a href="${denyUrl}" style="display:inline-block;flex:1;text-align:center;background:#EF4444;color:white;padding:14px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">❌ Denegar</a>
+      <a href="${approveUrl}" style="display:inline-block;flex:1;text-align:center;background:#10B981;color:white;padding:14px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Autorizar Acceso</a>
+      <a href="${denyUrl}" style="display:inline-block;flex:1;text-align:center;background:#EF4444;color:white;padding:14px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Denegar Acceso</a>
     </div>
   </div>
   <div style="padding:16px 24px;border-top:1px solid #1E2533;text-align:center;">
