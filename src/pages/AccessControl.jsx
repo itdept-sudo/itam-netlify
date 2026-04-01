@@ -182,7 +182,9 @@ export default function AccessControl() {
         throw new Error("Debes seleccionar al menos una puerta de acceso.");
       }
 
-      // 2. Create the Access Request
+      // 2. Create the Access Request with a manually generated token for safety
+      const requestToken = crypto.randomUUID();
+      
       const { data: request, error: reqError } = await supabase
         .from("access_requests")
         .insert({
@@ -191,18 +193,17 @@ export default function AccessControl() {
           requested_doors: altaSelectedDoors,
           requested_by: profile.id,
           puesto_encargado: altaPuesto,
-          status: "Pendiente"
+          status: "Pendiente",
+          token: requestToken // Enviar token manualmente
         })
         .select()
         .single();
 
       if (reqError) throw reqError;
 
-      if (!request?.token) {
-        console.error("No se generó el token de la solicitud:", request);
-      }
-
-      // 3. Enviar correo (no-bloqueante: si falla el correo, la solicitud igual se guarda)
+      // 3. Enviar correo (no-bloqueante)
+      console.log("Enviando correo con token:", requestToken);
+      
       fetch("/api/send-access-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -212,7 +213,7 @@ export default function AccessControl() {
           department: user.department,
           requestType: "Alta",
           requestedDoors: altaSelectedDoors,
-          token: request.token,
+          token: requestToken,
           puestoEncargado: altaPuesto,
           requesterName: profile.full_name
         })
@@ -245,6 +246,9 @@ export default function AccessControl() {
     }
     setLoading(true);
     try {
+      // Create request with manual token
+      const requestToken = crypto.randomUUID();
+      
       const { data: request, error: reqError } = await supabase
         .from("access_requests")
         .insert({
@@ -253,7 +257,8 @@ export default function AccessControl() {
           requested_doors: selectedDoors,
           requested_by: profile.id,
           puesto_encargado: actPuesto,
-          status: "Pendiente"
+          status: "Pendiente",
+          token: requestToken
         })
         .select()
         .single();
@@ -261,6 +266,8 @@ export default function AccessControl() {
       if (reqError) throw reqError;
 
       // Enviar correo (no-bloqueante)
+      console.log("Enviando correo con token (Act):", requestToken);
+
       fetch("/api/send-access-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -270,7 +277,7 @@ export default function AccessControl() {
           department: foundUser.department,
           requestType: "Actualizacion",
           requestedDoors: selectedDoors,
-          token: request?.token,
+          token: requestToken,
           puestoEncargado: actPuesto,
           requesterName: profile.full_name
         })

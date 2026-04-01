@@ -40,7 +40,15 @@ export default async function handler(req, res) {
       puestoEncargado, requesterName
     } = req.body;
 
+    console.log("DEBUG: Datos recibidos en API:", { 
+      token, 
+      tokenType: typeof token,
+      employeeName,
+      requestType 
+    });
+
     if (!employeeName || !token || !requestType) {
+      console.error("ERROR: Faltan campos obligatorios", { employeeName, token, requestType });
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -48,18 +56,17 @@ export default async function handler(req, res) {
     const smtpPass  = process.env.SMTP_PASS;
     const emailFrom = process.env.EMAIL_FROM || `"ITAM Desk" <${smtpUser}>`;
     const itEmail   = process.env.IT_EMAIL || "itdept@prosper-mfg.com";
+    
     let siteUrl = (process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
       : process.env.SITE_URL || "http://localhost:5173").replace(/\/$/, "");
 
-    if (!token) {
-      console.error("ALERTA: Recibida solicitud de correo sin TOKEN", { employeeName, requestType });
-    }
+    // Asegurar que el token no sea nulo ni indefinido antes de armar la URL
+    const safeToken = String(token || "NO_TOKEN_FOUND");
+    const approveUrl = `${siteUrl}/approve-access?token=${safeToken}&action=approve`;
+    const denyUrl    = `${siteUrl}/approve-access?token=${safeToken}&action=deny`;
 
-    const approveUrl = `${siteUrl}/approve-access?token=${token}&action=approve`;
-    const denyUrl    = `${siteUrl}/approve-access?token=${token}&action=deny`;
-
-    console.log("Generando enlaces de correo:", { approveUrl, token });
+    console.log("DEBUG: URLs Generadas:", { approveUrl, denyUrl });
     const doorsListHtml = requestedDoors
       ? requestedDoors.map(d => `<li style="margin-bottom:4px;">${d}</li>`).join("")
       : "N/A";
