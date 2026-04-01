@@ -198,6 +198,10 @@ export default function AccessControl() {
 
       if (reqError) throw reqError;
 
+      if (!request?.token) {
+        console.error("No se generó el token de la solicitud:", request);
+      }
+
       // 3. Enviar correo (no-bloqueante: si falla el correo, la solicitud igual se guarda)
       fetch("/api/send-access-email", {
         method: "POST",
@@ -266,7 +270,7 @@ export default function AccessControl() {
           department: foundUser.department,
           requestType: "Actualizacion",
           requestedDoors: selectedDoors,
-          token: request.token,
+          token: request?.token,
           puestoEncargado: actPuesto,
           requesterName: profile.full_name
         })

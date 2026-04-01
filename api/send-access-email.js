@@ -48,12 +48,18 @@ export default async function handler(req, res) {
     const smtpPass  = process.env.SMTP_PASS;
     const emailFrom = process.env.EMAIL_FROM || `"ITAM Desk" <${smtpUser}>`;
     const itEmail   = process.env.IT_EMAIL || "itdept@prosper-mfg.com";
-    const siteUrl   = process.env.VERCEL_URL
+    let siteUrl = (process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
-      : process.env.SITE_URL || "http://localhost:5173";
+      : process.env.SITE_URL || "http://localhost:5173").replace(/\/$/, "");
 
-    const approveUrl    = `${siteUrl}/approve-access?token=${token}&action=approve`;
-    const denyUrl       = `${siteUrl}/approve-access?token=${token}&action=deny`;
+    if (!token) {
+      console.error("ALERTA: Recibida solicitud de correo sin TOKEN", { employeeName, requestType });
+    }
+
+    const approveUrl = `${siteUrl}/approve-access?token=${token}&action=approve`;
+    const denyUrl    = `${siteUrl}/approve-access?token=${token}&action=deny`;
+
+    console.log("Generando enlaces de correo:", { approveUrl, token });
     const doorsListHtml = requestedDoors
       ? requestedDoors.map(d => `<li style="margin-bottom:4px;">${d}</li>`).join("")
       : "N/A";

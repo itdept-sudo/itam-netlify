@@ -12,6 +12,8 @@ export default function ApproveAccess() {
       const token = params.get("token");
       const action = params.get("action");
 
+      console.log("Validando URL de aprobación:", { token, action, url: window.location.href });
+
       if (!token || !action) {
         setStatus("invalid");
         setMessage("Ruta inválida. Faltan parámetros en la URL.");
