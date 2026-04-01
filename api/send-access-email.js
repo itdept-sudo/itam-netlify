@@ -61,10 +61,9 @@ export default async function handler(req, res) {
       ? `https://${process.env.VERCEL_URL}`
       : process.env.SITE_URL || "http://localhost:5173").replace(/\/$/, "");
 
-    // Construcción defensiva de la URL - Action primero para evitar que se corte el token
-    const safeToken = encodeURIComponent(token || "NO_TOKEN");
-    const approveUrl = `${siteUrl}/approve-access?action=approve&token=${safeToken}`;
-    const denyUrl    = `${siteUrl}/approve-access?action=deny&token=${safeToken}`;
+    // Nueva construcción de URL usando parámetros de ruta (más robustos)
+    const approveUrl = `${siteUrl}/approve-access/approve/${token || "MISSING"}`;
+    const denyUrl    = `${siteUrl}/approve-access/deny/${token || "MISSING"}`;
 
     console.log("DEBUG: URLs Generadas:", { approveUrl, denyUrl });
     const doorsListHtml = requestedDoors

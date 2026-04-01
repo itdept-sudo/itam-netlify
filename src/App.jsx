@@ -366,8 +366,7 @@ export default function App() {
   if (!isConfigured) return <ConfigError />;
 
   // Support public routes outside of AuthGate
-  const path = window.location.pathname.substring(1);
-  if (path === "approve-access") {
+  if (path.startsWith("approve-access")) {
     return <ApproveAccess />;
   }
 

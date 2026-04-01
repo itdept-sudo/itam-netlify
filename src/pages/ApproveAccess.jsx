@@ -9,12 +9,22 @@ export default function ApproveAccess() {
   useEffect(() => {
     async function processRequest() {
       const params = new URLSearchParams(window.location.search);
-      const token = params.get("token");
-      const action = params.get("action");
+      let token = params.get("token");
+      let action = params.get("action");
+
+      // Si faltan, intentar extraer de la ruta: /approve-access/approve/TOKEN
+      if (!token || !action) {
+        const pathParts = window.location.pathname.split("/").filter(Boolean);
+        // pathParts: ["approve-access", "approve", "TOKEN"]
+        if (pathParts.length >= 3 && pathParts[0] === "approve-access") {
+          action = pathParts[1];
+          token = pathParts[2];
+        }
+      }
 
       console.log("Validando URL de aprobación:", { token, action, url: window.location.href });
 
-      if (!token || !action) {
+      if (!token || !action || token === "MISSING") {
         setStatus("invalid");
         setMessage("Ruta inválida. Faltan parámetros en la URL.");
         return;
