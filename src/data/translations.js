@@ -14,6 +14,7 @@ export const translations = {
     admin: "Admin",
     user: "Usuario",
     rrhh: "RRHH",
+    accessControl: "Control de Acceso",
     
     // Inventory
     newAsset: "Nuevo Activo",
@@ -271,6 +272,7 @@ export const translations = {
     admin: "Admin",
     user: "User",
     rrhh: "HR",
+    accessControl: "Access Control",
     
     // Inventory
     newAsset: "New Asset",

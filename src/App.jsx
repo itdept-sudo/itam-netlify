@@ -15,6 +15,8 @@ import TicketsView from "./pages/Tickets";
 import UsersView from "./pages/UsersManagement";
 import UserPortal from "./pages/UserPortal";
 import RRHHPortal from "./pages/RRHHPortal";
+import ApproveAccess from "./pages/ApproveAccess";
+import AccessControl from "./pages/AccessControl";
 
 const adminPages = {
   dashboard: Dashboard,
@@ -24,11 +26,13 @@ const adminPages = {
   relations: RelationsView,
   tickets: TicketsView,
   users: UsersView,
+  access: AccessControl,
 };
 
 const rrhhPages = {
   lookup: RRHHPortal,
   portal: UserPortal,
+  access: AccessControl,
 };
 
 const userPages = {
@@ -360,6 +364,12 @@ export default function App() {
   }, []);
 
   if (!isConfigured) return <ConfigError />;
+
+  // Support public routes outside of AuthGate
+  const path = window.location.pathname.substring(1);
+  if (path === "approve-access") {
+    return <ApproveAccess />;
+  }
 
   return (
     <AuthProvider>

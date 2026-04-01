@@ -1,16 +1,54 @@
 import { useState } from "react";
-import { Plus, Send, ChevronRight, MessageSquare, Inbox, AlertCircle, Clock, CheckCircle2 } from "lucide-react";
+import { Plus, Send, ChevronRight, MessageSquare, Inbox, AlertCircle, Clock, CheckCircle2, Loader2 } from "lucide-react";
+import { supabase } from "../lib/supabase";
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 import { TICKET_STATUSES, TICKET_COLORS } from "../data/constants";
 import { StatusBadge, Badge, EmptyState, Modal, Input, Textarea, Btn } from "../components/ui";
+
+function resizeImage(file, maxSize = 1000) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxSize) { height = Math.round((height * maxSize) / width); width = maxSize; }
+        } else {
+          if (height > maxSize) { width = Math.round((width * maxSize) / height); height = maxSize; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => resolve(blob), "image/webp", 0.85);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadTicketPhoto(file) {
+  const resized = await resizeImage(file, 1000);
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+  const { data, error } = await supabase.storage
+    .from("ticket-photos")
+    .upload(fileName, resized, { contentType: "image/webp", upsert: true });
+  if (error) throw error;
+  const { data: urlData } = supabase.storage.from("ticket-photos").getPublicUrl(data.path);
+  return urlData.publicUrl;
+}
 
 export default function UserPortal() {
   const { tickets, items, models, brands, users, createTicket, addTicketComment, showToast, t } = useApp();
   const { user, profile } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
   const [detailTicket, setDetailTicket] = useState(null);
-  const [form, setForm] = useState({ title: "", description: "", item_id: "" });
+  const [form, setForm] = useState({ title: "", description: "", item_id: "", photos: [] });
+  const [uploading, setUploading] = useState(false);
   const [comment, setComment] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -18,18 +56,59 @@ export default function UserPortal() {
   const myItems = items.filter(i => i.user_id === user?.id);
   const filtered = myTickets.filter(t_obj => statusFilter === "all" || t_obj.status === statusFilter);
 
-  const openNew = () => { setForm({ title: "", description: "", item_id: "" }); setModalOpen(true); };
+  const openNew = () => { setForm({ title: "", description: "", item_id: "", photos: [] }); setModalOpen(true); };
 
   const save = async () => {
     if (!form.title.trim()) return;
-    await createTicket({
-      title: form.title,
-      description: form.description,
-      user_id: user.id,
-      item_id: form.item_id || null,
-      status: "Abierto",
+    setUploading(true);
+    try {
+      let uploadedUrls = [];
+      if (form.photos && form.photos.length > 0) {
+        uploadedUrls = await Promise.all(form.photos.map(p => uploadTicketPhoto(p.file)));
+      }
+
+      await createTicket({
+        title: form.title,
+        description: form.description,
+        user_id: user.id,
+        item_id: form.item_id || null,
+        status: "Abierto",
+        images: uploadedUrls
+      });
+      setModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      showToast("Error subiendo imágenes: " + err.message, "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handlePhotoSelect = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    
+    // Limits
+    const availableSlots = 3 - (form.photos?.length || 0);
+    const toAdd = files.slice(0, availableSlots);
+    
+    if (files.length > availableSlots) {
+      showToast("Solo puedes adjuntar un máximo de 3 imágenes.", "error");
+    }
+
+    const newPhotos = toAdd.map(file => {
+      const url = URL.createObjectURL(file);
+      return { file, previewUrl: url };
     });
-    setModalOpen(false);
+
+    setForm(p => ({ ...p, photos: [...(p.photos || []), ...newPhotos] }));
+  };
+
+  const removePhoto = (index) => {
+    setForm(p => ({
+      ...p,
+      photos: (p.photos || []).filter((_, i) => i !== index)
+    }));
   };
 
   const handleComment = async (ticketId) => {
@@ -135,9 +214,35 @@ export default function UserPortal() {
           )}
           <Input label={t("title")} value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder={t("issueSummary")} />
           <Textarea label={t("description")} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder={t("issueDetail")} />
+          
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider block">Adjuntar Imágenes (Máx. 3)</label>
+            <div className="flex gap-3 mt-2">
+              {(form.photos || []).map((photo, i) => (
+                <div key={i} className="relative w-16 h-16 rounded-xl border border-slate-700/50 bg-slate-800/30 overflow-hidden">
+                  <img src={photo.previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                  <button onClick={() => removePhoto(i)} className="absolute top-1 right-1 p-0.5 bg-black/60 rounded-full text-white hover:bg-red-500/80 transition-colors">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              ))}
+              
+              {(form.photos?.length || 0) < 3 && (
+                <label className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-700/50 flex items-center justify-center text-slate-500 hover:text-slate-300 hover:border-slate-500 hover:bg-slate-800/30 transition-all cursor-pointer">
+                  <Plus size={20} />
+                  <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoSelect} />
+                </label>
+              )}
+            </div>
+            {(form.photos?.length || 0) === 0 && <p className="text-[10px] text-slate-500">Haz clic en el recuadro para seleccionar imágenes de evidencia.</p>}
+          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <Btn variant="secondary" onClick={() => setModalOpen(false)}>{t("cancel")}</Btn>
-            <Btn onClick={save}><Send size={15} /> {t("sendTicket")}</Btn>
+            <Btn onClick={save} disabled={uploading}>
+              {uploading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} 
+              {uploading ? "Subiendo..." : t("sendTicket")}
+            </Btn>
           </div>
         </div>
       </Modal>
@@ -155,8 +260,21 @@ export default function UserPortal() {
                   <StatusBadge status={currentDetail.status} type="ticket" />
                   <span className="text-xs text-slate-500">{new Date(currentDetail.created_at).toLocaleString()}</span>
                 </div>
-                <p className="text-sm text-slate-300">{currentDetail.description}</p>
+                <p className="text-sm text-slate-300 whitespace-pre-wrap">{currentDetail.description}</p>
               </div>
+
+              {currentDetail.images && currentDetail.images.length > 0 && (
+                <div>
+                  <h5 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Imágenes Adjuntas</h5>
+                  <div className="flex flex-wrap gap-3">
+                    {currentDetail.images.map((imgUrl, i) => (
+                      <a key={i} href={imgUrl} target="_blank" rel="noreferrer" className="block w-24 h-24 rounded-xl border border-slate-700/50 hover:border-blue-500/50 overflow-hidden transition-colors">
+                        <img src={imgUrl} alt="Attached" className="w-full h-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {model && (
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/20 border border-slate-700/30">

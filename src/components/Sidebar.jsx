@@ -1,6 +1,6 @@
 import {
   Monitor, LayoutDashboard, Boxes, Cpu, UserCheck, Users,
-  Link2, TicketCheck, ChevronRight, ChevronDown, LogOut, Inbox, Languages, Search
+  Link2, TicketCheck, ChevronRight, ChevronDown, LogOut, Inbox, Languages, Search, Key
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useApp } from "../context/AppContext";
@@ -12,12 +12,14 @@ export function getNavItems(isAdmin, isRRHH, t) {
     { id: "models", label: t("models"), icon: Cpu },
     { id: "assignments", label: t("assignments"), icon: UserCheck },
     { id: "relations", label: t("relations"), icon: Link2 },
+    { id: "access", label: t("accessControl"), icon: Key },
     { id: "tickets", label: t("helpDesk"), icon: TicketCheck },
     { id: "users", label: t("users"), icon: Users },
   ];
 
   const RRHH_NAV = [
     { id: "lookup", label: t("employeeLookup"), icon: Search },
+    { id: "access", label: t("accessControl"), icon: Key },
     { id: "portal", label: t("myTickets"), icon: Inbox },
   ];
 
