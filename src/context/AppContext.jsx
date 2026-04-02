@@ -18,7 +18,9 @@ export function AppProvider({ children }) {
   const [unreadNotifications, setUnreadNotifications] = useState(() => {
     try {
       const saved = localStorage.getItem("itam_unread_notifications");
-      return saved ? JSON.parse(saved) : [];
+      if (!saved || saved === "undefined" || saved === "null") return [];
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
     } catch (e) { return []; }
   });
   const [movements, setMovements] = useState([]);

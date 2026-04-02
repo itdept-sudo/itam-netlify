@@ -41,7 +41,15 @@ const userPages = {
 
 function AppShell() {
   const { isAdmin, isRRHH, profile } = useAuth();
-  const { toast, clearToast, t, unreadNotifications, clearNotifications, markNotificationRead } = useApp();
+  const appContext = useApp();
+  // Safe access to prevent black screen if provider is in transition
+  const unreadNotifications = appContext?.unreadNotifications || [];
+  const clearNotifications = appContext?.clearNotifications;
+  const markNotificationRead = appContext?.markNotificationRead;
+  const t = appContext?.t || ((k) => k);
+  const toast = appContext?.toast;
+  const clearToast = appContext?.clearToast;
+
   const [showNotifications, setShowNotifications] = useState(false);
   const [page, setPage] = useState(() => {
     const path = window.location.pathname.substring(1);
