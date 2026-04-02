@@ -3,11 +3,12 @@ import nodemailer from "nodemailer";
 async function createTransporter() {
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
+  const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
 
-  // Try port 587 (TLS) first, then 465 (SSL)
+  // Intenta puerto 587 (TLS) primero y luego 465 (SSL)
   for (const config of [
-    { host: "smtp.gmail.com", port: 587, secure: false },
-    { host: "smtp.gmail.com", port: 465, secure: true },
+    { host: smtpHost, port: 587, secure: false },
+    { host: smtpHost, port: 465, secure: true },
   ]) {
     try {
       const t = nodemailer.createTransport({
@@ -19,10 +20,10 @@ async function createTransporter() {
       await t.verify();
       return t;
     } catch (e) {
-      console.warn(`SMTP ${config.port} failed:`, e.message);
+      console.warn(`SMTP ${config.port} failed for access:`, e.message);
     }
   }
-  throw new Error("Could not connect to SMTP on ports 587 or 465");
+  throw new Error("Could not connect to SMTP for access after trying ports 587 and 465");
 }
 
 export default async function handler(req, res) {
@@ -40,13 +41,6 @@ export default async function handler(req, res) {
       puestoEncargado, requesterName
     } = req.body;
 
-    console.log("DEBUG: Datos recibidos en API:", { 
-      token, 
-      tokenType: typeof token,
-      employeeName,
-      requestType 
-    });
-
     if (!employeeName || !token || !requestType) {
       console.error("ERROR: Faltan campos obligatorios", { employeeName, token, requestType });
       return res.status(400).json({ error: "Missing required fields" });
@@ -56,31 +50,22 @@ export default async function handler(req, res) {
     const smtpPass  = process.env.SMTP_PASS;
     const emailFrom = process.env.EMAIL_FROM || `"ITAM Desk" <${smtpUser}>`;
     const itEmail   = process.env.IT_EMAIL || "itdept@prosper-mfg.com";
-    
-    let siteUrl = (process.env.SITE_URL || "https://itam-netlify.vercel.app").replace(/\/$/, "");
+    const siteUrl   = (process.env.SITE_URL || "https://itam-netlify.vercel.app").replace(/\/$/, "");
 
-    // Nueva construcción de URL usando parámetros de ruta (más robustos)
+    if (!smtpUser || !smtpPass) {
+      console.log(`ACCESS NOTIFICATION (Dry Run):`, { to: itEmail, employeeName });
+      return res.status(200).json({ success: true, provider: "logged" });
+    }
+
+    // Construcción de URLs (formatos de ruta robustos)
     const approveUrl = `${siteUrl}/approve-access/approve/${token || "MISSING"}`;
     const denyUrl    = `${siteUrl}/approve-access/deny/${token || "MISSING"}`;
 
-    console.log("DEBUG: URLs Generadas:", { approveUrl, denyUrl });
     const doorsListHtml = requestedDoors
       ? requestedDoors.map(d => `<li style="margin-bottom:4px;">${d}</li>`).join("")
       : "N/A";
 
-    if (!smtpUser || !smtpPass) {
-      console.log(`ACCESS NOTIFICATION (${requestType}):`, { to: itEmail, approveUrl });
-      return res.status(200).json({
-        success: true, provider: "logged",
-        note: "Configura SMTP_USER y SMTP_PASS en Vercel",
-        approveUrl
-      });
-    }
-
-    const transporter = await createTransporter();
-
     const subject = `🚪 Solicitud de ${requestType} de Acceso: ${employeeName}`;
-
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0B0E14;color:#E2E8F0;padding:40px 20px;">
@@ -113,31 +98,30 @@ export default async function handler(req, res) {
     </div>
   </div>
   <div style="padding:16px 24px;border-top:1px solid #1E2533;text-align:center;">
-    <p style="margin:0;font-size:11px;color:#475569;">Prosper Manufacturing · Autogenerado por ITAM Desk</p>
+    <p style="margin:0;font-size:11px;color:#475569;">Prosper Manufacturing · ITAM Desk</p>
   </div>
 </div>
 </body></html>`;
 
-    // Envío con reintento automático para errores de red transitorios (EBUSY, ENOTFOUND, etc.)
+    // MAX ROBUSTEZ: 5 reintentos para cualquier error de red/DNS en el envío
     let lastErr;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
         try {
+            const transporter = await createTransporter();
             await transporter.sendMail({ from: emailFrom, to: itEmail, subject, html });
             return res.status(200).json({ success: true, provider: "smtp" });
         } catch (err) {
             lastErr = err;
-            if (err.code === "EBUSY" || err.code === "ENOTFOUND" || err.code === "ETIMEDOUT" || err.code === "EAI_AGAIN") {
-                console.warn(`[Retry Access Email] Intento ${i + 1} falló (${err.code}), reintentando...`);
-                await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Espera incremental
-                continue;
-            }
-            throw err; // Fallar inmediatamente si es un error permanente (ej: auth)
+            console.error(`[Retry Access] Intento ${i + 1} falló:`, err.message);
+            // Salta reintentos si es un error de credenciales permanentes
+            if (err.message.includes("Invalid login") || err.message.includes("auth")) throw err;
+            await new Promise(r => setTimeout(r, 1000 * (i + 1))); 
         }
     }
     throw lastErr;
 
   } catch (err) {
-    console.error("send-access-email error:", err.message);
+    console.error("send-access-email error final:", err.message);
     return res.status(500).json({ error: err.message });
   }
 }

@@ -1,5 +1,30 @@
 import nodemailer from "nodemailer";
 
+async function createTransporter() {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+
+  // Try port 587 (TLS) first, then 465 (SSL)
+  for (const port of [587, 465]) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: port,
+        secure: port === 465,
+        auth: { user: smtpUser, pass: smtpPass },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+      });
+      await transporter.verify();
+      return transporter;
+    } catch (e) {
+      console.warn(`SMTP ${port} failed for tickets:`, e.message);
+    }
+  }
+  throw new Error("Could not connect to SMTP for tickets after trying ports 587 and 465");
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -15,28 +40,15 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing fields" });
     }
 
-    const smtpHost     = process.env.SMTP_HOST;
-    const smtpPort     = parseInt(process.env.SMTP_PORT || "587");
     const smtpUser     = process.env.SMTP_USER;
     const smtpPass     = process.env.SMTP_PASS;
     const emailFrom    = process.env.EMAIL_FROM || `"ITAM Desk" <${smtpUser}>`;
     const siteUrl      = process.env.SITE_URL || "https://itam-netlify.vercel.app";
 
-    // Si no hay config, solo logea y devuelve OK (no rompe la app)
-    if (!smtpHost || !smtpUser || !smtpPass) {
+    if (!smtpUser || !smtpPass) {
       console.log("EMAIL (no SMTP config):", { to, ticketTitle, type });
-      return res.status(200).json({
-        success: true, provider: "logged",
-        note: "Configura SMTP_HOST, SMTP_USER y SMTP_PASS en Vercel"
-      });
+      return res.status(200).json({ success: true, provider: "logged" });
     }
-
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465, // true para SSL (465), false para TLS (587)
-      auth: { user: smtpUser, pass: smtpPass },
-    });
 
     const statusColors = {
       Abierto: { color: "#EF4444", bg: "rgba(239,68,68,0.1)" },
@@ -47,9 +59,7 @@ export default async function handler(req, res) {
     const sOld = statusColors[oldStatus] || { color: "#64748B", bg: "rgba(100,116,139,0.1)" };
 
     const isStatus = type === "status";
-    const subject = isStatus
-      ? `📋 Ticket actualizado: ${ticketTitle}`
-      : `💬 Nueva respuesta en: ${ticketTitle}`;
+    const subject = isStatus ? `📋 Ticket actualizado: ${ticketTitle}` : `💬 Nueva respuesta en: ${ticketTitle}`;
 
     const contentHtml = isStatus ? `
       <div style="background:#0B0E14;border-radius:12px;padding:16px;margin-bottom:24px;">
@@ -65,13 +75,11 @@ export default async function handler(req, res) {
             <p style="margin:4px 0 0;font-size:13px;color:${sNew.color};font-weight:600;">${newStatus}</p>
           </div>
         </div>
-      </div>
-    ` : `
+      </div>` : `
       <div style="background:#0B0E14;border-radius:12px;padding:16px;margin-bottom:24px;border-left:4px solid #3B82F6;">
         <p style="margin:0 0 12px;font-size:13px;color:#64748B;">Soporte IT ha respondido:</p>
         <p style="margin:0;font-size:14px;color:#E2E8F0;line-height:1.6;font-style:italic;">"${commentText}"</p>
-      </div>
-    `;
+      </div>`;
 
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
@@ -94,26 +102,26 @@ export default async function handler(req, res) {
 </div>
 </body></html>`;
 
-    // Reintento automático para manejar errores transitorios como EBUSY
+    // MAX ROBUSTEZ: 5 reintentos para cualquier error de red/DNS (EBUSY, ENOTFOUND, etc.)
     let lastErr;
-    for (let i = 0; i < 3; i++) {
-      try {
-        await transporter.sendMail({ from: emailFrom, to, subject, html });
-        return res.status(200).json({ success: true, provider: "smtp" });
-      } catch (err) {
-        lastErr = err;
-        if (err.code === "EBUSY" || err.code === "ENOTFOUND" || err.code === "ETIMEDOUT") {
-          console.warn(`[Retry] Intento ${i + 1} falló (${err.code}), reintentando...`);
-          await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Incremental backoff
-          continue;
+    for (let i = 0; i < 5; i++) {
+        try {
+            const transporter = await createTransporter();
+            await transporter.sendMail({ from: emailFrom, to, subject, html });
+            return res.status(200).json({ success: true, provider: "smtp" });
+        } catch (err) {
+            lastErr = err;
+            console.error(`[Retry Ticket] Intento ${i + 1} falló:`, err.message);
+            // Si el error es de autenticación, fallar de inmediato sin reintentar
+            if (err.message.includes("Invalid login") || err.message.includes("auth")) throw err;
+            // Esperar con backoff exponencial suave
+            await new Promise(r => setTimeout(r, 1000 * (i + 1))); 
         }
-        throw err; // Si es un error de otro tipo (ej: auth), fallar inmediatamente
-      }
     }
     throw lastErr;
 
   } catch (err) {
-    console.error("send-ticket-email error:", err);
+    console.error("send-ticket-email error final:", err.message);
     return res.status(500).json({ error: err.message });
   }
 }
