@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bell, Menu, Loader2, AlertTriangle, RefreshCw, LogOut, ShieldAlert, ExternalLink } from "lucide-react";
+import { Bell, Menu, Loader2, AlertTriangle, RefreshCw, LogOut, AlertCircle, ExternalLink } from "lucide-react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AppProvider, useApp } from "./context/AppContext";
 import { supabase, isConfigured } from "./lib/supabase";
@@ -132,7 +132,7 @@ function AppShell() {
               <Bell size={18} />
               {unreadNotifications?.length > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center border-2 border-[#0B0E14]">
-                  {unreadNotifications.length}
+                  {unreadNotifications?.length || 0}
                 </span>
               )}
             </button>
@@ -160,7 +160,7 @@ function AppShell() {
                         className="w-full p-4 border-b border-slate-800/50 hover:bg-slate-800/30 text-left transition-colors flex gap-3"
                       >
                         <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                          <ShieldAlert size={14} className="text-blue-400" />
+                          <AlertCircle size={14} className="text-blue-400" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-0.5">
