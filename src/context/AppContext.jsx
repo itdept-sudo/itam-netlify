@@ -15,6 +15,12 @@ export function AppProvider({ children }) {
   const [users, setUsers] = useState([]);
   const [relations, setRelations] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(() => {
+    try {
+      const saved = localStorage.getItem("itam_unread_notifications");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) { return []; }
+  });
   const [movements, setMovements] = useState([]);
   const [toast, setToast] = useState(null);
   const [dashboardStats, setDashboardStats] = useState({ items: 0, tickets: 0, pending: 0, active: 0 });
@@ -117,6 +123,10 @@ export function AppProvider({ children }) {
   }, [session]);
 
   useEffect(() => {
+    localStorage.setItem("itam_unread_notifications", JSON.stringify(unreadNotifications));
+  }, [unreadNotifications]);
+
+  useEffect(() => {
     if (!session) return;
     
     let timeout;
@@ -125,8 +135,32 @@ export function AppProvider({ children }) {
       timeout = setTimeout(() => fetchAll({ showLoader: false }), 1500);
     };
 
+    const handleNewTicket = async (payload) => {
+      if (!isAdmin) return; // For now only admins get "new ticket" alerts
+      
+      const newT = payload.new;
+      // Evitar duplicados si ya está en la lista (evita ráfagas)
+      setUnreadNotifications(prev => {
+        if (prev.some(n => n.id === newT.id)) return prev;
+        
+        const u = users.find(x => x.id === newT.user_id);
+        const notification = {
+          id: newT.id,
+          title: newT.title,
+          ticket_number: newT.ticket_number,
+          user_name: u?.full_name || "Usuario",
+          created_at: newT.created_at,
+          type: "new_ticket"
+        };
+        return [notification, ...prev].slice(0, 10); // Mantener máximo 10
+      });
+      debouncedFetch();
+    };
+
     const ch = supabase.channel("itam-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, debouncedFetch)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "tickets" }, handleNewTicket)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tickets" }, debouncedFetch)
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "tickets" }, debouncedFetch)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "ticket_comments" }, debouncedFetch)
       .subscribe();
 
@@ -134,7 +168,7 @@ export function AppProvider({ children }) {
       if (timeout) clearTimeout(timeout);
       supabase.removeChannel(ch); 
     };
-  }, [session, fetchAll]);
+  }, [session, fetchAll, isAdmin, users]);
 
   // ── Brands CRUD ──
   const createBrand = async (name) => {
@@ -340,11 +374,19 @@ export function AppProvider({ children }) {
     showToast(active ? "userActivated" : "userDeactivated");
   };
 
+  useEffect(() => {
+    localStorage.setItem("itam_unread_notifications", JSON.stringify(unreadNotifications));
+  }, [unreadNotifications]);
+
+  const clearNotifications = () => setUnreadNotifications([]);
+  const markNotificationRead = (id) => setUnreadNotifications(prev => prev.filter(n => n.id !== id));
+
   return (
     <AppContext.Provider value={{
       items, models, brands, assetTypes, areas, users, relations, tickets, movements,
       dataLoading, showToast, clearToast, toast, fetchAll, dashboardStats, fetchDashboardStats, syncMetadata,
       language, t, toggleLanguage,
+      unreadNotifications, clearNotifications, markNotificationRead,
       createBrand, updateBrand, deleteBrand,
       createAssetType, updateAssetType, deleteAssetType,
       createArea, updateArea, deleteArea,

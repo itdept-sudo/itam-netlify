@@ -41,7 +41,8 @@ const userPages = {
 
 function AppShell() {
   const { isAdmin, isRRHH, profile } = useAuth();
-  const { toast, clearToast, t } = useApp();
+  const { toast, clearToast, t, unreadNotifications, clearNotifications, markNotificationRead } = useApp();
+  const [showNotifications, setShowNotifications] = useState(false);
   const [page, setPage] = useState(() => {
     const path = window.location.pathname.substring(1);
     if (path && (Object.keys(adminPages).includes(path) || Object.keys(userPages).includes(path) || Object.keys(rrhhPages).includes(path))) {
@@ -123,10 +124,75 @@ function AppShell() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
-            <button className="relative p-2 rounded-xl hover:bg-slate-800/40 text-slate-400">
+          <div className="flex items-center gap-3 relative">
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)}
+              className={`relative p-2 rounded-xl transition-all ${showNotifications ? "bg-blue-500/10 text-blue-400" : "hover:bg-slate-800/40 text-slate-400"}`}
+            >
               <Bell size={18} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500" />
+              {unreadNotifications?.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center border-2 border-[#0B0E14]">
+                  {unreadNotifications.length}
+                </span>
+              )}
             </button>
+
+            {/* Notification Dropdown */}
+            {showNotifications && (
+              <div className="absolute top-full right-0 mt-2 w-80 bg-[#151A24] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Notificaciones</h3>
+                  {unreadNotifications?.length > 0 && (
+                    <button onClick={clearNotifications} className="text-[10px] text-blue-400 hover:text-blue-300 font-medium">Limpiar todo</button>
+                  )}
+                </div>
+                <div className="max-h-[360px] overflow-y-auto">
+                  {unreadNotifications?.length > 0 ? (
+                    unreadNotifications.map((n) => (
+                      <button 
+                        key={n.id} 
+                        onClick={() => {
+                          setPage("tickets");
+                          markNotificationRead(n.id);
+                          setShowNotifications(false);
+                          window.history.pushState(null, "", "/tickets");
+                        }}
+                        className="w-full p-4 border-b border-slate-800/50 hover:bg-slate-800/30 text-left transition-colors flex gap-3"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                          <ShieldAlert size={14} className="text-blue-400" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-[10px] font-bold text-blue-500">TK-{n.ticket_number}</span>
+                            <span className="text-[10px] text-slate-500 truncate">· {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <p className="text-sm font-medium text-slate-200 truncate">{n.title}</p>
+                          <p className="text-[10px] text-slate-500 truncate">Por {n.user_name}</p>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-12 text-center">
+                      <div className="w-12 h-12 bg-slate-800/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Bell size={20} className="text-slate-600" />
+                      </div>
+                      <p className="text-sm text-slate-500 font-medium">Bandeja vacía</p>
+                      <p className="text-xs text-slate-600 mt-1">No tienes avisos nuevos</p>
+                    </div>
+                  )}
+                </div>
+                {unreadNotifications?.length > 0 && (
+                  <button 
+                    onClick={() => { setPage("tickets"); setShowNotifications(false); window.history.pushState(null, "", "/tickets"); }}
+                    className="w-full p-3 text-center text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition-colors font-medium border-t border-slate-800"
+                  >
+                    Ver todos los tickets
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
             <div className="hidden sm:block w-px h-6 bg-slate-800" />
             <div className="flex items-center gap-2">
               <div
