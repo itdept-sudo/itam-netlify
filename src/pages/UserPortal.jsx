@@ -181,6 +181,7 @@ export default function UserPortal() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">TK-{ticket.ticket_number}</span>
                   <p className="text-sm font-medium text-slate-200 truncate">{ticket.title}</p>
                   <StatusBadge status={ticket.status} type="ticket" />
                 </div>
@@ -248,7 +249,7 @@ export default function UserPortal() {
       </Modal>
 
       {/* Ticket Detail */}
-      <Modal open={!!currentDetail} onClose={() => setDetailTicket(null)} title={currentDetail?.title} wide>
+      <Modal open={!!currentDetail} onClose={() => setDetailTicket(null)} title={currentDetail ? `TK-${currentDetail.ticket_number} | ${currentDetail.title}` : ""} wide>
         {currentDetail && (() => {
           const item = currentDetail.item_id ? items.find(i => i.id === currentDetail.item_id) : null;
           const model = item ? models.find(m => m.id === item.model_id) : null;
