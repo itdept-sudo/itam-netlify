@@ -6,7 +6,7 @@ import { translations } from "../data/translations";
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
-  const { session } = useAuth();
+  const { session, isAdmin } = useAuth();
   const [items, setItems] = useState([]);
   const [models, setModels] = useState([]);
   const [brands, setBrands] = useState(() => JSON.parse(localStorage.getItem("itam_brands") || "[]"));
