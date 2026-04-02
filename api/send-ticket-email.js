@@ -20,9 +20,7 @@ export default async function handler(req, res) {
     const smtpUser     = process.env.SMTP_USER;
     const smtpPass     = process.env.SMTP_PASS;
     const emailFrom    = process.env.EMAIL_FROM || `"ITAM Desk" <${smtpUser}>`;
-    const siteUrl      = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.SITE_URL || "https://itam-desk.vercel.app";
+    const siteUrl      = process.env.SITE_URL || "https://itam-netlify.vercel.app";
 
     // Si no hay config, solo logea y devuelve OK (no rompe la app)
     if (!smtpHost || !smtpUser || !smtpPass) {

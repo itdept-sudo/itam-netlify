@@ -269,14 +269,21 @@ export function AppProvider({ children }) {
     setTickets(p => p.map(t => t.id === id ? { ...t, status } : t));
     showToast(`Ticket → ${status}`);
 
+    // Notificación robusta de cambio de estatus
     if (ticket) {
       const u = users.find(x => x.id === ticket.user_id);
       if (u?.email) {
+        console.log(`[Notification] Enviando cambio de estatus a ${u.email}...`);
         fetch("/api/send-ticket-email", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ to: u.email, userName: u.full_name, ticketTitle: ticket.title, oldStatus, newStatus: status, type: "status" })
-        }).catch(e => console.error("Email err:", e));
+        })
+        .then(r => r.json())
+        .then(res => console.log("[Notification] Respuesta API:", res))
+        .catch(e => console.error("[Notification] Error enviando correo:", e));
+      } else {
+        console.warn("[Notification] No se encontró el correo del usuario para el ticket", id);
       }
     }
   };
@@ -296,17 +303,23 @@ export function AppProvider({ children }) {
     }));
     showToast("commentAdded"); 
 
-    // Notify user if staff replied
+    // Notificación al usuario si IT respondió
     if (isStaff) {
       const ticket = tickets.find(t => t.id === ticketId);
       if (ticket) {
         const u = users.find(x => x.id === ticket.user_id);
         if (u?.email) {
+          console.log(`[Notification] Enviando respuesta de IT a ${u.email}...`);
           fetch("/api/send-ticket-email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ to: u.email, userName: u.full_name, ticketTitle: ticket.title, commentText: text, type: "comment" })
-          }).catch(e => console.error("Email err:", e));
+          })
+          .then(r => r.json())
+          .then(res => console.log("[Notification] Respuesta API (comentario):", res))
+          .catch(e => console.error("[Notification] Error enviando respuesta de IT:", e));
+        } else {
+          console.warn("[Notification] No se encontró el correo del usuario para notificar respuesta.");
         }
       }
     }
