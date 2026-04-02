@@ -6,7 +6,6 @@ import {
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 import { Badge, EmptyState, Modal, Input, Select, Btn } from "../components/ui";
-import { supabaseAdminClient } from "../lib/supabase";
 
 export default function UsersView() {
   const { users, items, models, brands, tickets, areas, createArea, updateArea, deleteArea, updateUserProfile, toggleUserActive, showToast, t } = useApp();
@@ -41,19 +40,25 @@ export default function UsersView() {
     setCreating(true);
     try {
       const full_name = `${createForm.firstName.trim()} ${createForm.lastName.trim()}`;
-      const { error } = await supabaseAdminClient.auth.signUp({
-        email: createForm.email,
-        password: createForm.password,
-        options: {
-          data: {
+      
+      const res = await fetch("/api/admin-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          action: "createUser", 
+          userData: {
+            email: createForm.email,
+            password: createForm.password,
             full_name,
             role: createForm.role,
             department: createForm.department,
             employee_number: createForm.employee_number,
           }
-        }
+        })
       });
-      if (error) throw error;
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Error al crear usuario.");
       
       showToast(t("userCreated"), "success");
       setCreateModal(false);
@@ -100,17 +105,24 @@ export default function UsersView() {
     }
     setResetting(true);
     try {
-      // requires SERVICE_ROLE_KEY in supabaseAdminClient
-      const { error } = await supabaseAdminClient.auth.admin.updateUserById(editUser.id, {
-        password: newPass
+      const res = await fetch("/api/admin-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          action: "resetPassword", 
+          userId: editUser.id,
+          newPassword: newPass
+        })
       });
-      if (error) throw error;
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Error al restablecer contraseña.");
+
       showToast(t("passwordResetSuccess"), "success");
       setResetModal(false);
       setNewPass("");
     } catch (err) {
-      const isKeyError = err.message.includes("apiKey") || err.message.includes("service role");
-      showToast(isKeyError ? t("adminKeyRequired") : t("passwordResetError") + ": " + err.message, "error");
+      showToast(t("passwordResetError") + ": " + err.message, "error");
     } finally {
       setResetting(false);
     }

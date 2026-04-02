@@ -27,15 +27,3 @@ export const supabase = createClient(
     },
   }
 );
-
-export const supabaseAdminClient = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co', 
-  supabaseServiceRoleKey || supabaseAnonKey || 'placeholder', 
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false,
-    },
-  }
-);
