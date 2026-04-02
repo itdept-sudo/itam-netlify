@@ -57,9 +57,7 @@ export default async function handler(req, res) {
     const emailFrom = process.env.EMAIL_FROM || `"ITAM Desk" <${smtpUser}>`;
     const itEmail   = process.env.IT_EMAIL || "itdept@prosper-mfg.com";
     
-    let siteUrl = (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.SITE_URL || "http://localhost:5173").replace(/\/$/, "");
+    let siteUrl = (process.env.SITE_URL || "https://itam-netlify.vercel.app").replace(/\/$/, "");
 
     // Nueva construcción de URL usando parámetros de ruta (más robustos)
     const approveUrl = `${siteUrl}/approve-access/approve/${token || "MISSING"}`;
@@ -120,8 +118,23 @@ export default async function handler(req, res) {
 </div>
 </body></html>`;
 
-    await transporter.sendMail({ from: emailFrom, to: itEmail, subject, html });
-    return res.status(200).json({ success: true, provider: "smtp" });
+    // Envío con reintento automático para errores de red transitorios (EBUSY, ENOTFOUND, etc.)
+    let lastErr;
+    for (let i = 0; i < 3; i++) {
+        try {
+            await transporter.sendMail({ from: emailFrom, to: itEmail, subject, html });
+            return res.status(200).json({ success: true, provider: "smtp" });
+        } catch (err) {
+            lastErr = err;
+            if (err.code === "EBUSY" || err.code === "ENOTFOUND" || err.code === "ETIMEDOUT" || err.code === "EAI_AGAIN") {
+                console.warn(`[Retry Access Email] Intento ${i + 1} falló (${err.code}), reintentando...`);
+                await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Espera incremental
+                continue;
+            }
+            throw err; // Fallar inmediatamente si es un error permanente (ej: auth)
+        }
+    }
+    throw lastErr;
 
   } catch (err) {
     console.error("send-access-email error:", err.message);

@@ -94,9 +94,23 @@ export default async function handler(req, res) {
 </div>
 </body></html>`;
 
-    await transporter.sendMail({ from: emailFrom, to, subject, html });
-
-    return res.status(200).json({ success: true, provider: "smtp" });
+    // Reintento automático para manejar errores transitorios como EBUSY
+    let lastErr;
+    for (let i = 0; i < 3; i++) {
+      try {
+        await transporter.sendMail({ from: emailFrom, to, subject, html });
+        return res.status(200).json({ success: true, provider: "smtp" });
+      } catch (err) {
+        lastErr = err;
+        if (err.code === "EBUSY" || err.code === "ENOTFOUND" || err.code === "ETIMEDOUT") {
+          console.warn(`[Retry] Intento ${i + 1} falló (${err.code}), reintentando...`);
+          await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Incremental backoff
+          continue;
+        }
+        throw err; // Si es un error de otro tipo (ej: auth), fallar inmediatamente
+      }
+    }
+    throw lastErr;
 
   } catch (err) {
     console.error("send-ticket-email error:", err);
