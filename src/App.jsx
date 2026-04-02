@@ -366,7 +366,7 @@ function ConfigError() {
         
         <div className="mb-6 relative">
           <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto">
-            <ShieldAlert size={32} className="text-red-400" />
+            <AlertCircle size={32} className="text-red-400" />
           </div>
           <div className="absolute inset-0 bg-red-400/20 blur-2xl rounded-full" />
         </div>
