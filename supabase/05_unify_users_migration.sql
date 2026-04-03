@@ -101,6 +101,29 @@ LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = ''
 AS $$
 BEGIN
+  -- 7. TRANSFER ASSETS & TICKETS (Restore Assignments)
+  -- If a user existed in both tables, move their equipment to the main profile
+  UPDATE public.items i
+  SET user_id = p.id
+  FROM public.profiles p
+  WHERE i.user_id IS NOT NULL 
+    AND p.employee_number IS NOT NULL 
+    AND p.employee_number != ''
+    AND i.user_id != p.id;
+
+  UPDATE public.tickets t
+  SET user_id = p.id
+  FROM public.profiles p
+  WHERE t.user_id IS NOT NULL 
+    AND p.employee_number IS NOT NULL 
+    AND t.user_id != p.id;
+
+  -- 6. LINK EXISTING SYSTEM USERS (Restore Access)
+  -- This ensures existing admins can still log in by linking their id to auth_id
+  UPDATE public.profiles 
+  SET auth_id = id 
+  WHERE auth_id IS NULL AND email IS NOT NULL;
+
   -- Security: Domain Check
   IF NEW.email NOT LIKE '%@prosper-mfg.com' THEN
     RAISE EXCEPTION 'Dominio no autorizado para registro.';

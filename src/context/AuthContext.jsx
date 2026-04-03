@@ -31,6 +31,21 @@ export function AuthProvider({ children }) {
             .eq("auth_id", userId)
             .single();
 
+          // Fallback: Si no lo encontramos por auth_id, buscar por id directamente
+          if (!data) {
+            const { data: fallbackData } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", userId)
+              .single();
+            
+            if (fallbackData) {
+              setProfile(fallbackData);
+              profileIdRef.current = userId;
+              return fallbackData;
+            }
+          }
+
           if (data) {
             console.log("AuthContext: Profile loaded successfully");
             setProfile(data);
