@@ -28,13 +28,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Faltan parámetros: token o action." });
     }
 
-    // 1. Fetch the request with joins
+    // 1. Fetch the request with joins (Now pointing everything to profiles)
     const { data: request, error: fetchErr } = await supabase
       .from("access_requests")
       .select(`
         *,
-        user:production_users(*),
-        requester:profiles(full_name, email)
+        user:user_id(*),
+        requester:requested_by(full_name, email)
       `)
       .eq("token", token)
       .single();
@@ -67,10 +67,10 @@ export default async function handler(req, res) {
         : "N/A";
         
       const description = `
-SOLICITUD DE ACCESO AUTORIZADA
-==============================
+SOLICITUD DE ACCESO AUTORIZADA (Unificada)
+==========================================
 Tipo: ${request.request_type}
-Empleado: ${u?.first_name || 'N/A'} ${u?.last_name_paternal || ''} (#${u?.employee_number || 'N/A'})
+Empleado: ${u?.full_name || u?.first_name || 'N/A'} ${u?.last_name_paternal || ''} (#${u?.employee_number || 'N/A'})
 Departamento: ${u?.department || 'N/A'}
 Puesto Encargado: ${request.puesto_encargado || "N/A"}
 Puertas: ${doorsStr}
@@ -83,7 +83,7 @@ Nota: Este ticket fue generado automáticamente tras la aprobación vía correo 
       const { data: ticket, error: ticketError } = await supabase
         .from("tickets")
         .insert({
-          title: `⚙️ IT/Accesos - ${request.request_type}: ${u?.first_name || 'Nuevo'} ${u?.last_name_paternal || 'Usuario'}`,
+          title: `⚙️ IT/Accesos - ${request.request_type}: ${u?.full_name || u?.first_name || 'Nuevo Usuario'}`,
           description,
           user_id: request.requested_by, // Assigned to the original requester (HR)
           status: "Abierto"
