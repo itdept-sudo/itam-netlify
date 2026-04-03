@@ -66,6 +66,41 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: "Contraseña actualizada exitosamente." });
     }
 
+    // 3. Elevate User (Assign Platform Access)
+    if (action === "elevateUser") {
+      const { email, role, userId: profileId } = req.body;
+      
+      if (!email.endsWith("@prosper-mfg.com")) {
+        return res.status(400).json({ error: "Dominio no autorizado." });
+      }
+
+      // Generate a secure temporary password
+      const tempPassword = Math.random().toString(36).slice(-10) + "A1!";
+
+      // Create Auth User
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email,
+        password: tempPassword,
+        email_confirm: true,
+      });
+
+      if (authError) throw authError;
+
+      // Update existing profile
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          email,
+          role,
+          id: authData.user.id // This aligns the profile ID with the auth ID
+        })
+        .eq("id", profileId);
+
+      if (profileError) throw profileError;
+
+      return res.status(200).json({ success: true, tempPassword });
+    }
+
     return res.status(400).json({ error: "Acción no reconocida." });
 
   } catch (err) {

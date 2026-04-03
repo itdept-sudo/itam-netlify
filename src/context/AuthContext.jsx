@@ -28,7 +28,7 @@ export function AuthProvider({ children }) {
           const { data, error } = await supabase
             .from("profiles")
             .select("*")
-            .eq("id", userId)
+            .eq("auth_id", userId)
             .single();
 
           if (data) {
@@ -74,6 +74,17 @@ export function AuthProvider({ children }) {
         setSession(s);
         
         if (s?.user) {
+          // Security: Early check for domain
+          if (!s.user.email.endsWith("@prosper-mfg.com")) {
+            console.error("AuthContext: Unauthorized domain:", s.user.email);
+            // Sign out immediately if domain is not allowed
+            supabase.auth.signOut();
+            setSession(null);
+            setProfile(null);
+            setLoading(false);
+            return;
+          }
+
           // Wrapped in a timeout to prevent hanging the entire loading state
           const fetchPromise = fetchProfile(s.user.id);
           const timeoutPromise = new Promise((_, reject) => 
@@ -111,6 +122,9 @@ export function AuthProvider({ children }) {
       provider: "google",
       options: {
         redirectTo: window.location.origin,
+        queryParams: {
+          hd: 'prosper-mfg.com' // Suggests the domain in the Google picker
+        }
       },
     });
     if (error) console.error("Google sign-in error:", error);
@@ -122,6 +136,9 @@ export function AuthProvider({ children }) {
   };
 
   const signUpWithEmail = async (email, password, fullName) => {
+    if (!email.endsWith("@prosper-mfg.com")) {
+      return { error: { message: "Solo se permiten correos con el dominio @prosper-mfg.com" } };
+    }
     const { error } = await supabase.auth.signUp({
       email,
       password,

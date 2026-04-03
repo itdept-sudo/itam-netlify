@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
   try {
     const {
-      employeeName, employeeNumber, department,
+      employeeName, employeeNumber, cardNumber, department,
       requestType, requestedDoors, token,
       puestoEncargado, requesterName
     } = req.body;
@@ -74,6 +74,7 @@ export default async function handler(req, res) {
   <p><strong>${requesterName}</strong> ha solicitado una <strong>${requestType}</strong> de accesos.</p>
   <div style="background:#0B0E14;border-radius:12px;padding:20px;border:1px solid #1E2533;">
     <p>Empleado: ${employeeName} (#${employeeNumber})</p>
+    <p>Tarjeta: ${cardNumber || "N/A"}</p>
     <p>Departamento: ${department}</p>
     <p>Puertas: <ul>${doorsListHtml}</ul></p>
   </div>

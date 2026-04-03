@@ -27,6 +27,12 @@ export default function UsersView() {
   const [newPass, setNewPass] = useState("");
   const [resetting, setResetting] = useState(false);
 
+  // Unification / Elevation State
+  const [activeTab, setActiveTab] = useState("all"); // all, system, production
+  const [elevateModal, setElevateModal] = useState(false);
+  const [elevateForm, setElevateForm] = useState({ email: "", role: "user" });
+  const [elevating, setElevating] = useState(false);
+
   const handleCreateUser = async () => {
     if (!createForm.firstName || !createForm.lastName || !createForm.email || !createForm.password) {
       showToast(t("mandatoryFields"), "error");
@@ -70,9 +76,43 @@ export default function UsersView() {
     }
   };
 
-  const filtered = users.filter(u =>
-    `${u.full_name} ${u.email} ${u.department}`.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = users.filter(u => {
+    const matchesSearch = `${u.full_name} ${u.email || ''} ${u.department}`.toLowerCase().includes(search.toLowerCase());
+    if (activeTab === "system") return matchesSearch && u.role !== "produccion";
+    if (activeTab === "production") return matchesSearch && u.role === "produccion";
+    return matchesSearch;
+  });
+
+  const handleElevate = async () => {
+    if (!elevateForm.email.endsWith("@prosper-mfg.com")) {
+      showToast("Solo se permiten correos @prosper-mfg.com", "error");
+      return;
+    }
+    setElevating(true);
+    try {
+      const res = await fetch("/api/admin-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          action: "elevateUser", 
+          userId: editUser.id,
+          email: elevateForm.email,
+          role: elevateForm.role
+        })
+      });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Error al elevar permisos.");
+
+      showToast("Acceso web asignado correctamente.", "success");
+      setElevateModal(false);
+      setEditModal(false);
+    } catch (err) {
+      showToast("Error: " + err.message, "error");
+    } finally {
+      setElevating(false);
+    }
+  };
 
   const openEdit = (u) => {
     setEditUser(u);
@@ -158,6 +198,12 @@ export default function UsersView() {
         </div>
       </div>
 
+      <div className="flex gap-2 p-1 bg-slate-800/20 border border-slate-700/30 rounded-xl w-fit">
+        <button onClick={() => setActiveTab("all")} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === "all" ? "bg-slate-700 text-white" : "text-slate-500 hover:text-slate-300"}`}>Todos</button>
+        <button onClick={() => setActiveTab("system")} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === "system" ? "bg-blue-600/20 text-blue-400" : "text-slate-500 hover:text-slate-300"}`}>Acceso Plataforma</button>
+        <button onClick={() => setActiveTab("production")} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === "production" ? "bg-emerald-600/20 text-emerald-400" : "text-slate-500 hover:text-slate-300"}`}>Solo Producción</button>
+      </div>
+
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("searchUsersPlaceholder")} className="w-full pl-10 pr-4 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50" />
@@ -201,8 +247,8 @@ export default function UsersView() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <Badge color={u.role === "admin" ? "purple" : "gray"}>
-                  {u.role === "admin" ? <><ShieldCheck size={11} /> {t("admin")}</> : t("user")}
+                <Badge color={u.role === "admin" ? "purple" : u.role === "produccion" ? "emerald" : "gray"}>
+                  {u.role === "admin" ? <><ShieldCheck size={11} /> {t("admin")}</> : u.role === "produccion" ? "Producción" : t("user")}
                 </Badge>
                 <div className="text-right hidden sm:block">
                   <p className="text-xs text-slate-400">{t("assetsCount").replace("{{count}}", userItems.length)}</p>
@@ -259,13 +305,27 @@ export default function UsersView() {
             </p>
           </div>
           <div className="flex justify-between items-center pt-2">
-            <Btn 
-              variant="secondary" 
-              className="!text-amber-500 !bg-amber-500/5 hover:!bg-amber-500/10 border-amber-500/20"
-              onClick={() => setResetModal(true)}
-            >
-              <KeyRound size={14} /> {t("resetPassword")}
-            </Btn>
+            <div className="flex gap-2">
+              {myProfile?.role === "admin" && editUser?.role === 'produccion' && (
+                <Btn 
+                  variant="secondary" 
+                  className="!text-blue-400 !bg-blue-400/5 hover:!bg-blue-400/10 border-blue-400/20"
+                  onClick={() => {
+                    setElevateForm({ email: "", role: "user" });
+                    setElevateModal(true);
+                  }}
+                >
+                  <KeyRound size={14} /> Asignar Acceso Web
+                </Btn>
+              )}
+              <Btn 
+                variant="secondary" 
+                className="!text-amber-500 !bg-amber-500/5 hover:!bg-amber-500/10 border-amber-500/20"
+                onClick={() => setResetModal(true)}
+              >
+                <KeyRound size={14} /> {t("resetPassword")}
+              </Btn>
+            </div>
             <div className="flex gap-2">
               <Btn variant="secondary" onClick={() => setEditModal(false)}>{t("cancel")}</Btn>
               <Btn onClick={saveUser}><Save size={15} /> {t("save")}</Btn>

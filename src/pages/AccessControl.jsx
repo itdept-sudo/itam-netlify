@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { UserPlus, UserCog, UserMinus, Search, Mail, Loader2, CheckCircle, ShieldAlert, List, Download } from "lucide-react";
+import { UserPlus, UserCog, UserMinus, Search, Mail, Loader2, CheckCircle, ShieldAlert, List, Download, AlertTriangle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { useApp } from "../context/AppContext";
@@ -27,6 +27,7 @@ export default function AccessControl() {
 
   // Form State - Alta
   const [altaEmployeeNumber, setAltaEmployeeNumber] = useState("");
+  const [altaCardNumber, setAltaCardNumber] = useState("");
   const [altaFirstName, setAltaFirstName] = useState("");
   const [altaLastNameP, setAltaLastNameP] = useState("");
   const [altaLastNameM, setAltaLastNameM] = useState("");
@@ -34,10 +35,18 @@ export default function AccessControl() {
   const [altaPuesto, setAltaPuesto] = useState("");
   const [altaSelectedDoors, setAltaSelectedDoors] = useState(["Entrada Personal"]);
 
+  const handleNumberInput = (setter) => (e) => {
+    const val = e.target.value;
+    if (val === "" || /^\d+$/.test(val)) {
+      setter(val);
+    }
+  };
+
   // Search State - Actualización & Baja
   const [searchQuery, setSearchQuery] = useState("");
-  const [foundUser, setFoundUser] = useState(null);
+  const [foundUser, setFoundUser] = useState(null); // Normalizado: { id, type: 'prod'|'system', full_name, employee_number, department, ... }
   const [isSearching, setIsSearching] = useState(false);
+  const [assignedItems, setAssignedItems] = useState([]);
 
   // Actualización Form
   const [selectedDoors, setSelectedDoors] = useState([]);
@@ -47,11 +56,12 @@ export default function AccessControl() {
     setLoadingDirectory(true);
     try {
       const { data, error } = await supabase
-        .from('production_users')
+        .from('profiles')
         .select(`
           *,
           access_requests(*)
         `)
+        .eq('role', 'produccion')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -102,9 +112,10 @@ export default function AccessControl() {
   const handleExportCSV = () => {
     if (directoryUsers.length === 0) return;
 
-    const headers = ["Numero de Empleado", "Nombres", "Apellidos", "Departamento", "Estado", "Puertas de Acceso"];
+    const headers = ["Numero de Empleado", "Numero de Tarjeta", "Nombres", "Apellidos", "Departamento", "Estado", "Puertas de Acceso"];
     const rows = directoryUsers.map(u => [
       u.employee_number,
+      u.card_number || "N/A",
       u.first_name,
       `${u.last_name_paternal} ${u.last_name_maternal}`.trim(),
       u.department,
@@ -132,24 +143,44 @@ export default function AccessControl() {
 
     setIsSearching(true);
     setFoundUser(null);
+    setAssignedItems([]);
     setSelectedDoors([]);
 
     try {
-      const { data, error } = await supabase
-        .from("production_users")
+      // Ahora buscamos únicamente en la tabla de perfiles unificada
+      let { data, error } = await supabase
+        .from("profiles")
         .select("*")
-        .or(`employee_number.ilike.%${searchQuery}%,first_name.ilike.%${searchQuery}%,last_name_paternal.ilike.%${searchQuery}%`)
+        .or(`employee_number.ilike.%${searchQuery}%,full_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
         .limit(1)
         .single();
       
-      if (error) {
-        if (error.code === 'PGRST116') {
-          showToast("No se encontró ningún empleado con ese criterio.", "error");
-        } else {
-          throw error;
+      let finalUser = null;
+
+      if (!error && data) {
+        finalUser = {
+          ...data,
+          id: data.id,
+          sourceType: data.role === 'produccion' ? 'production' : 'system',
+          full_name: data.full_name
+        };
+
+        setFoundUser(finalUser);
+        
+        // Buscar equipos asignados
+        const { data: itemsFound } = await supabase
+          .from("items")
+          .select(`
+            *,
+            models(name)
+          `)
+          .eq("user_id", finalUser.id);
+        
+        if (itemsFound) {
+          setAssignedItems(itemsFound);
         }
       } else {
-        setFoundUser(data);
+        showToast("No se encontró ningún empleado con ese criterio.", "error");
       }
     } catch (err) {
       console.error(err);
@@ -163,15 +194,18 @@ export default function AccessControl() {
     e.preventDefault();
     setLoading(true);
     try {
-      // 1. Create the user
+      // 1. Create the user profile directly in the profiles table
       const { data: user, error: userError } = await supabase
-        .from("production_users")
+        .from("profiles")
         .insert({
           employee_number: altaEmployeeNumber,
+          card_number: altaCardNumber,
           first_name: altaFirstName,
           last_name_paternal: altaLastNameP,
           last_name_maternal: altaLastNameM,
-          department: altaDepartment
+          full_name: `${altaFirstName} ${altaLastNameP} ${altaLastNameM}`.trim(),
+          department: altaDepartment,
+          role: 'produccion'
         })
         .select()
         .single();
@@ -210,6 +244,7 @@ export default function AccessControl() {
         body: JSON.stringify({
           employeeName: `${user.first_name} ${user.last_name_paternal}`,
           employeeNumber: user.employee_number,
+          cardNumber: user.card_number,
           department: user.department,
           requestType: "Alta",
           requestedDoors: altaSelectedDoors,
@@ -223,6 +258,7 @@ export default function AccessControl() {
       
       // Reset
       setAltaEmployeeNumber("");
+      setAltaCardNumber("");
       setAltaFirstName("");
       setAltaLastNameP("");
       setAltaLastNameM("");
@@ -301,28 +337,45 @@ export default function AccessControl() {
     if (!foundUser) return;
     setLoading(true);
     try {
-      // Create request (immediately approved)
-      const { data: request, error: reqError } = await supabase
-        .from("access_requests")
-        .insert({
-          user_id: foundUser.id,
-          request_type: "Baja",
-          requested_doors: [],
-          requested_by: profile.id,
-          status: "Aprobado" 
-        })
-        .select()
-        .single();
+      const isSystemUser = foundUser.sourceType === 'system';
+      const itemsList = assignedItems.map(i => `${i.models?.name || 'Equipo'} (S/N: ${i.serial_number})`).join(", ");
       
-      if (reqError) throw reqError;
+      // 1. Si es de producción, registrar el fin de acceso físico
+      if (foundUser.sourceType === 'production') {
+        const { error: reqError } = await supabase
+          .from("access_requests")
+          .insert({
+            user_id: foundUser.id,
+            request_type: "Baja",
+            requested_doors: [],
+            requested_by: profile.id,
+            status: "Aprobado" 
+          });
+        
+        if (reqError) throw reqError;
+      } else if (isSystemUser) {
+        // Si es del sistema, desactivar su cuenta (si existe el campo status)
+        await supabase
+          .from("profiles")
+          .update({ role: 'view_only' }) // O alguna marca de baja
+          .eq("id", foundUser.id);
+      }
 
-      // Automatically create the Ticket
-      const description = `Baja de Usuario (Despido).\nEmpleado: ${foundUser.first_name} ${foundUser.last_name_paternal} (#${foundUser.employee_number})\nDepartamento: ${foundUser.department}`;
+      // 2. Crear el Ticket para IT indicando la recuperación de equipo
+      let description = `Baja de Usuario (${isSystemUser ? 'Personal de Sistema' : 'Personal de Producción'}).\n`;
+      description += `Empleado: ${foundUser.full_name || foundUser.first_name} (#${foundUser.employee_number})\n`;
+      description += `Departamento: ${foundUser.department}\n\n`;
+      
+      if (assignedItems.length > 0) {
+        description += `⚠️ EQUIPO PENDIENTE DE RECUPERACIÓN:\n${itemsList}`;
+      } else {
+        description += `(No se detectaron activos asignados)`;
+      }
       
       const { error: tktError } = await supabase
         .from("tickets")
         .insert({
-          title: `⚙️ IT/Accesos - Baja: ${foundUser.first_name} ${foundUser.last_name_paternal}`,
+          title: `⚙️ IT/Baja: ${foundUser.full_name || foundUser.first_name}`,
           description,
           user_id: profile.id,
           status: "Abierto"
@@ -330,9 +383,10 @@ export default function AccessControl() {
       
       if (tktError) throw tktError;
 
-      showToast("Baja registrada y ticket creado automáticamente.", "success");
+      showToast(`Baja registrada${assignedItems.length > 0 ? ' (ALERTA DE EQUIPO ENVIADA)' : ''}.`, "success");
       setFoundUser(null);
       setSearchQuery("");
+      setAssignedItems([]);
       
     } catch (err) {
       console.error(err);
@@ -413,11 +467,6 @@ export default function AccessControl() {
                   className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-300">Número de Empleado *</label>
-                <input required value={altaEmployeeNumber} onChange={e => setAltaEmployeeNumber(e.target.value)}
-                  className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500" />
-              </div>
-              <div className="space-y-1.5">
                 <label className="text-sm font-medium text-slate-300">Apellido Paterno *</label>
                 <input required value={altaLastNameP} onChange={e => setAltaLastNameP(e.target.value)}
                   className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500" />
@@ -428,12 +477,24 @@ export default function AccessControl() {
                   className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500" />
               </div>
               <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-300">Número de Empleado *</label>
+                <input required value={altaEmployeeNumber} onChange={handleNumberInput(setAltaEmployeeNumber)}
+                  placeholder="Solo números"
+                  className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="space-y-1.5">
                 <label className="text-sm font-medium text-slate-300">Departamento *</label>
                 <input required value={altaDepartment} onChange={e => setAltaDepartment(e.target.value)}
                   className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-300">Puesto Encargado (Opcional)</label>
+                <label className="text-sm font-medium text-slate-300">Número de Tarjeta *</label>
+                <input required value={altaCardNumber} onChange={handleNumberInput(setAltaCardNumber)}
+                  placeholder="Solo números"
+                  className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-sm font-medium text-slate-300">Puesto Asignado</label>
                 <input value={altaPuesto} onChange={e => setAltaPuesto(e.target.value)} placeholder="Ej. Supervisor de Línea"
                   className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500" />
               </div>
@@ -486,10 +547,10 @@ export default function AccessControl() {
               <div className="p-5 border border-slate-800 bg-[#0d121b] rounded-2xl animate-in fade-in slide-in-from-bottom-2">
                 <h3 className="text-lg font-semibold text-slate-200 mb-4">Empleado Encontrado</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
-                  <div><span className="text-slate-500 block">Nombre</span> <span className="text-slate-200 font-medium">{foundUser.first_name} {foundUser.last_name_paternal}</span></div>
+                  <div><span className="text-slate-500 block">Nombre</span> <span className="text-slate-200 font-medium">{foundUser.full_name || `${foundUser.first_name} ${foundUser.last_name_paternal}`}</span></div>
                   <div><span className="text-slate-500 block">N° de Empleado</span> <span className="font-mono text-blue-400">{foundUser.employee_number}</span></div>
+                  <div><span className="text-slate-500 block">Origen</span> <span className="text-slate-400 uppercase text-[10px] bg-slate-800 px-2 py-0.5 rounded">{foundUser.sourceType === 'production' ? 'Producción' : 'Sistema'}</span></div>
                   <div><span className="text-slate-500 block">Departamento</span> <span className="text-slate-200">{foundUser.department}</span></div>
-                  <div><span className="text-slate-500 block">Fecha Alta</span> <span className="text-slate-400">{new Date(foundUser.created_at).toLocaleDateString()}</span></div>
                 </div>
 
                 {activeTab === "actualizacion" && (
@@ -528,6 +589,27 @@ export default function AccessControl() {
 
                 {activeTab === "baja" && (
                   <div className="space-y-4 pt-4 border-t border-slate-800">
+                    {/* ALERTA DE EQUIPO ASIGNADO */}
+                    {assignedItems.length > 0 && (
+                      <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl animate-pulse">
+                        <div className="flex gap-3 items-start">
+                          <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={20} />
+                          <div>
+                            <h4 className="text-amber-500 font-bold text-sm uppercase tracking-wide">Atención: Recuperar Equipo</h4>
+                            <p className="text-slate-300 text-xs mt-1">Este usuario tiene equipos asignados que deben ser recolectados:</p>
+                            <ul className="mt-2 space-y-1">
+                              {assignedItems.map(item => (
+                                <li key={item.id} className="text-[11px] text-slate-200 bg-amber-500/5 px-2 py-1 rounded border border-amber-500/10 flex justify-between">
+                                  <span>• {item.models?.name || 'Equipo Generico'}</span>
+                                  <span className="font-mono text-amber-500/70">{item.serial_number}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
                       <p className="text-sm text-red-300 flex gap-2 items-start">
                         <ShieldAlert size={18} className="shrink-0 mt-0.5" />
@@ -575,6 +657,7 @@ export default function AccessControl() {
                   <thead className="bg-[#0B0E14] text-slate-300 text-xs uppercase">
                     <tr>
                       <th className="px-6 py-4 font-medium">N° Empleado</th>
+                      <th className="px-6 py-4 font-medium">N° Tarjeta</th>
                       <th className="px-6 py-4 font-medium">Nombre</th>
                       <th className="px-6 py-4 font-medium">Departamento</th>
                       <th className="px-6 py-4 font-medium">Estado</th>
@@ -592,6 +675,7 @@ export default function AccessControl() {
                       .map((user) => (
                       <tr key={user.id} className="hover:bg-slate-800/50 transition-colors">
                         <td className="px-6 py-4 font-mono text-blue-400">{user.employee_number}</td>
+                        <td className="px-6 py-4 font-mono text-slate-400 text-xs">{user.card_number || "N/A"}</td>
                         <td className="px-6 py-4 text-slate-200 font-medium">
                           {user.first_name} {user.last_name_paternal} {user.last_name_maternal}
                         </td>
