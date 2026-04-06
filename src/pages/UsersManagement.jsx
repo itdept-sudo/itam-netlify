@@ -356,6 +356,39 @@ export default function UsersView() {
         </div>
       </Modal>
 
+      {/* Elevation Modal */}
+      <Modal open={elevateModal} onClose={() => setElevateModal(false)} title="Asignar Acceso a Plataforma">
+        <div className="space-y-4">
+          <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/20">
+            <p className="text-xs text-blue-400">
+              Estás habilitando el acceso web para <span className="text-slate-200 font-medium">{editUser?.full_name}</span>. Se requiere un correo institucional de @prosper-mfg.com.
+            </p>
+          </div>
+          <Input 
+            label="Correo Electrónico (Prosper MFG)" 
+            value={elevateForm.email} 
+            onChange={e => setElevateForm(p => ({ ...p, email: e.target.value }))} 
+            placeholder="usuario@prosper-mfg.com" 
+          />
+          <Select 
+            label="Rol en Plataforma" 
+            options={[
+              { value: "user", label: "Usuario Estándar" }, 
+              { value: "rrhh", label: "Recursos Humanos" },
+              { value: "admin", label: "Administrador" }
+            ]} 
+            value={elevateForm.role} 
+            onChange={e => setElevateForm(p => ({ ...p, role: e.target.value }))} 
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="secondary" onClick={() => setElevateModal(false)}>{t("cancel")}</Btn>
+            <Btn onClick={handleElevate} disabled={elevating || !elevateForm.email.includes('@prosper-mfg.com')}>
+              {elevating ? "..." : <Save size={15} />} Confirmar Acceso
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+
       {/* Detail Modal */}
       <Modal open={!!detailUser} onClose={() => setDetailUser(null)} title={detailUser?.full_name} wide>
         {detailUser && (() => {
