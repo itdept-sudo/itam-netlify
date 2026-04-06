@@ -86,13 +86,13 @@ export default async function handler(req, res) {
 
       if (authError) throw authError;
 
-      // Update existing profile
+      // Update existing profile with the new auth link
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
           email,
           role,
-          id: authData.user.id // This aligns the profile ID with the auth ID
+          auth_id: authData.user.id // Linked via auth_id to preserve original PK id
         })
         .eq("id", profileId);
 
