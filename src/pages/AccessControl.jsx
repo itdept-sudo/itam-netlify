@@ -61,7 +61,6 @@ export default function AccessControl() {
           *,
           access_requests!access_requests_user_id_fkey(*)
         `)
-        .or('role.eq.produccion,card_number.is.not_null')
         .order('full_name', { ascending: true });
 
       if (error) throw error;
