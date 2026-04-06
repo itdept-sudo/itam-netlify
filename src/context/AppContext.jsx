@@ -370,6 +370,7 @@ export function AppProvider({ children }) {
     showToast("userUpdated");
   };
   const toggleUserActive = async (id, active) => {
+    const { error } = await supabase.from("profiles").update({ is_active: active }).eq("id", id);
     if (error) { showToast(error.message, "error"); return; }
     setUsers(p => p.map(u => u.id === id ? { ...u, is_active: active } : u));
     showToast(active ? "userActivated" : "userDeactivated");

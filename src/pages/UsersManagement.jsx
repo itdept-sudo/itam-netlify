@@ -141,9 +141,20 @@ export default function UsersView() {
 
   const handleDelete = async () => {
     if (!editUser) return;
-    await deleteUserProfile(editUser.id);
+    const idToDelete = editUser.id;
+    
+    // Primero cerramos todo y limpiamos el usuario seleccionado
+    // para evitar que la interfaz intente dibujar a alguien que ya no existe
     setDeleteConfirm(false);
     setEditModal(false);
+    setEditUser(null);
+    
+    try {
+      await deleteUserProfile(idToDelete);
+    } catch (err) {
+      console.error("Error al borrar usuario:", err);
+      // El error ya lo muestra el AppContext vía toast, pero aquí evitamos el crash
+    }
   };
 
   const handleResetPassword = async () => {
