@@ -370,10 +370,36 @@ export function AppProvider({ children }) {
     showToast("userUpdated");
   };
   const toggleUserActive = async (id, active) => {
-    const { error } = await supabase.from("profiles").update({ is_active: active }).eq("id", id);
     if (error) { showToast(error.message, "error"); return; }
     setUsers(p => p.map(u => u.id === id ? { ...u, is_active: active } : u));
     showToast(active ? "userActivated" : "userDeactivated");
+  };
+  const deleteUserProfile = async (id) => {
+    const userToDelete = users.find(u => u.id === id);
+    if (!userToDelete) return;
+
+    // 1. Delete from Auth (if they have a mapping)
+    const targetAuthId = userToDelete.auth_id || userToDelete.id;
+    try {
+      await fetch("/api/admin-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "deleteUser", userId: targetAuthId })
+      });
+    } catch (e) {
+      console.warn("Could not delete from Auth (might not have an account), proceeding with profile deletion:", e.message);
+    }
+
+    // 2. Delete from Profiles
+    const { error } = await supabase.from("profiles").delete().eq("id", id);
+    if (error) { showToast(error.message, "error"); return; }
+
+    // 3. Update Local State
+    setUsers(p => p.filter(u => u.id !== id));
+    setItems(p => p.map(i => i.user_id === id ? { ...i, user_id: null, status: "Disponible" } : i));
+    setTickets(p => p.map(t => t.user_id === id ? { ...t, user_id: null } : t));
+    
+    showToast("userDeleted", "error");
   };
 
   useEffect(() => {
@@ -396,7 +422,7 @@ export function AppProvider({ children }) {
       createItem, updateItem, deleteItem,
       createRelation, deleteRelation,
       createTicket, updateTicketStatus, addTicketComment,
-      updateUserProfile, toggleUserActive,
+      updateUserProfile, toggleUserActive, deleteUserProfile,
     }}>
       {children}
     </AppContext.Provider>

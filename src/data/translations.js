@@ -81,6 +81,7 @@ export const translations = {
     userUpdated: "Usuario actualizado",
     userActivated: "Usuario activado",
     userDeactivated: "Usuario desactivado",
+    userDeleted: "Usuario eliminado permanentemente",
     
     // Models
     modelsAndBrands: "Modelos & Marcas",
@@ -339,6 +340,7 @@ export const translations = {
     userUpdated: "User updated",
     userActivated: "User activated",
     userDeactivated: "User deactivated",
+    userDeleted: "User permanently deleted",
     
     // Models
     modelsAndBrands: "Models & Brands",

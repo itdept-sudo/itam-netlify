@@ -101,6 +101,23 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, tempPassword });
     }
 
+    // 4. Delete User (Force removal from Auth)
+    if (action === "deleteUser") {
+      if (!userId) {
+        return res.status(400).json({ error: "Falta el ID del usuario." });
+      }
+
+      console.log(`[ADMIN-AUTH] Intentando eliminar usuario Auth ID: ${userId}`);
+      const { error } = await supabase.auth.admin.deleteUser(userId);
+
+      if (error) {
+        console.error("[ADMIN-AUTH] Error al borrar de Auth:", error.message);
+        throw error;
+      }
+
+      return res.status(200).json({ success: true, message: "Cuenta de autenticación eliminada." });
+    }
+
     return res.status(400).json({ error: "Acción no reconocida." });
 
   } catch (err) {

@@ -26,6 +26,7 @@ export default function UsersView() {
   const [resetModal, setResetModal] = useState(false);
   const [newPass, setNewPass] = useState("");
   const [resetting, setResetting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   // Unification / Elevation State
   const [activeTab, setActiveTab] = useState("all"); // all, system, production
@@ -135,6 +136,13 @@ export default function UsersView() {
       department: form.department, 
       role: form.role 
     });
+    setEditModal(false);
+  };
+
+  const handleDelete = async () => {
+    if (!editUser) return;
+    await deleteUserProfile(editUser.id);
+    setDeleteConfirm(false);
     setEditModal(false);
   };
 
@@ -306,6 +314,13 @@ export default function UsersView() {
           </div>
           <div className="flex justify-between items-center pt-2">
             <div className="flex gap-2">
+              <Btn 
+                variant="secondary" 
+                className="!text-red-500 !bg-red-500/5 hover:!bg-red-500/10 border-red-500/20"
+                onClick={() => setDeleteConfirm(true)}
+              >
+                <Trash2 size={14} /> {t("delete")}
+              </Btn>
               {myProfile?.role === "admin" && editUser?.role === 'produccion' && (
                 <Btn 
                   variant="secondary" 
@@ -513,6 +528,26 @@ export default function UsersView() {
               </div>
             ))}
             {areas.length === 0 && <p className="text-xs text-slate-500 text-center py-4">{t("noAreasRegistered")}</p>}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal open={deleteConfirm} onClose={() => setDeleteConfirm(false)} title={t("confirm")} small>
+        <div className="space-y-4">
+          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex gap-3 text-red-100">
+            <AlertTriangle size={20} className="text-red-400 shrink-0" />
+            <p className="text-xs leading-relaxed">
+              ¿Estás seguro de que deseas eliminar permanentemente a <strong>{editUser?.full_name}</strong>?
+              <br /><br />
+              Esta acción es irreversible y liberará cualquier equipo asignado.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Btn variant="secondary" onClick={() => setDeleteConfirm(false)}>{t("cancel")}</Btn>
+            <Btn className="!bg-red-600 hover:!bg-red-500" onClick={handleDelete}>
+              {t("confirm")}
+            </Btn>
           </div>
         </div>
       </Modal>
