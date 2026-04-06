@@ -8,7 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { Badge, EmptyState, Modal, Input, Select, Btn } from "../components/ui";
 
 export default function UsersView() {
-  const { users, items, models, brands, tickets, areas, createArea, updateArea, deleteArea, updateUserProfile, toggleUserActive, showToast, t } = useApp();
+  const { users, items, models, brands, tickets, areas, createArea, updateArea, deleteArea, updateUserProfile, toggleUserActive, deleteUserProfile, showToast, t } = useApp();
   const { profile: myProfile } = useAuth();
   const [search, setSearch] = useState("");
   const [editModal, setEditModal] = useState(false);
