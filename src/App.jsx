@@ -17,6 +17,8 @@ import UserPortal from "./pages/UserPortal";
 import RRHHPortal from "./pages/RRHHPortal";
 import ApproveAccess from "./pages/ApproveAccess";
 import AccessControl from "./pages/AccessControl";
+import Directory from "./pages/Directory";
+import Reports from "./pages/Reports";
 
 const adminPages = {
   dashboard: Dashboard,
@@ -27,6 +29,8 @@ const adminPages = {
   tickets: TicketsView,
   users: UsersView,
   access: AccessControl,
+  directory: Directory,
+  reports: Reports,
 };
 
 const rrhhPages = {

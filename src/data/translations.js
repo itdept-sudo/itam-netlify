@@ -15,6 +15,8 @@ export const translations = {
     user: "Usuario",
     rrhh: "RRHH",
     accessControl: "Control de Acceso",
+    directory: "Directorio",
+    reports: "Reportes",
     
     // Inventory
     newAsset: "Nuevo Activo",
@@ -159,6 +161,13 @@ export const translations = {
     noAreasRegistered: "No hay áreas registradas",
     emailPlaceholder: "Ej: juan@itam.mx",
     passwordPlaceholder: "Mínimo 6 caracteres",
+    searchDirectory: "Buscar en el directorio...",
+    contactInfo: "Información de Contacto",
+    generalStats: "Estadísticas Generales",
+    exportInventory: "Exportar Inventario",
+    exportUsers: "Exportar Usuarios",
+    exportTickets: "Exportar Tickets",
+    downloadCSV: "Descargar CSV",
     
     // System / App
     connecting: "Conectando con el servidor...",
@@ -274,6 +283,8 @@ export const translations = {
     user: "User",
     rrhh: "HR",
     accessControl: "Access Control",
+    directory: "Directory",
+    reports: "Reports",
     
     // Inventory
     newAsset: "New Asset",
@@ -418,6 +429,13 @@ export const translations = {
     noAreasRegistered: "No areas registered",
     emailPlaceholder: "e.g., john@company.com",
     passwordPlaceholder: "Minimum 6 characters",
+    searchDirectory: "Search directory...",
+    contactInfo: "Contact Information",
+    generalStats: "General Statistics",
+    exportInventory: "Export Inventory",
+    exportUsers: "Export Users",
+    exportTickets: "Export Tickets",
+    downloadCSV: "Download CSV",
     
     // System / App
     connecting: "Connecting to server...",
