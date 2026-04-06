@@ -1,7 +1,6 @@
 import {
   Monitor, LayoutDashboard, Boxes, Cpu, UserCheck, Users,
-  Link2, TicketCheck, ChevronRight, ChevronDown, LogOut, Inbox, Languages, Search, Key,
-  Contact, BarChart3
+  Link2, TicketCheck, ChevronRight, ChevronDown, LogOut, Inbox, Languages, Search, Key
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useApp } from "../context/AppContext";
@@ -16,8 +15,6 @@ export function getNavItems(isAdmin, isRRHH, t) {
     { id: "access", label: t("accessControl"), icon: Key },
     { id: "tickets", label: t("helpDesk"), icon: TicketCheck },
     { id: "users", label: t("users"), icon: Users },
-    { id: "directory", label: t("directory"), icon: Contact },
-    { id: "reports", label: t("reports"), icon: BarChart3 },
   ];
 
   const RRHH_NAV = [

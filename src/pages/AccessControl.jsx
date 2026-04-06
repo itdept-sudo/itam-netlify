@@ -61,8 +61,8 @@ export default function AccessControl() {
           *,
           access_requests(*)
         `)
-        .eq('role', 'produccion')
-        .order('created_at', { ascending: false });
+        .or('role.eq.produccion,card_number.is.not.null')
+        .order('full_name', { ascending: true });
 
       if (error) throw error;
 
@@ -112,15 +112,14 @@ export default function AccessControl() {
   const handleExportCSV = () => {
     if (directoryUsers.length === 0) return;
 
-    const headers = ["Numero de Empleado", "Numero de Tarjeta", "Nombres", "Apellidos", "Departamento", "Estado", "Puertas de Acceso"];
+    const headers = ["Numero de Empleado", "Numero de Tarjeta", "Nombre Completo", "Departamento", "Estado", "Puertas de Acceso"];
     const rows = directoryUsers.map(u => [
-      u.employee_number,
+      u.employee_number || "",
       u.card_number || "N/A",
-      u.first_name,
-      `${u.last_name_paternal} ${u.last_name_maternal}`.trim(),
-      u.department,
+      u.full_name || `${u.first_name || ""} ${u.last_name_paternal || ""}`.trim(),
+      u.department || "",
       u.isActive ? 'Activo' : 'Baja',
-      u.activeDoors.join(', ')
+      (u.activeDoors || []).join(', ')
     ]);
 
     const csvContent = [headers, ...rows]
@@ -668,16 +667,15 @@ export default function AccessControl() {
                     {directoryUsers
                       .filter(u => 
                         !dirSearchQuery || 
-                        u.employee_number.toLowerCase().includes(dirSearchQuery.toLowerCase()) || 
-                        u.first_name.toLowerCase().includes(dirSearchQuery.toLowerCase()) || 
-                        u.last_name_paternal.toLowerCase().includes(dirSearchQuery.toLowerCase())
+                        (u.employee_number || "").toLowerCase().includes(dirSearchQuery.toLowerCase()) || 
+                        (u.full_name || "").toLowerCase().includes(dirSearchQuery.toLowerCase())
                       )
                       .map((user) => (
                       <tr key={user.id} className="hover:bg-slate-800/50 transition-colors">
                         <td className="px-6 py-4 font-mono text-blue-400">{user.employee_number}</td>
                         <td className="px-6 py-4 font-mono text-slate-400 text-xs">{user.card_number || "N/A"}</td>
                         <td className="px-6 py-4 text-slate-200 font-medium">
-                          {user.first_name} {user.last_name_paternal} {user.last_name_maternal}
+                          {user.full_name || `${user.first_name || ""} ${user.last_name_paternal || ""} ${user.last_name_maternal || ""}`.trim()}
                         </td>
                         <td className="px-6 py-4">{user.department}</td>
                         <td className="px-6 py-4">
