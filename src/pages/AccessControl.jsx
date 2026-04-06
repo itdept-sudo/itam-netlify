@@ -61,7 +61,7 @@ export default function AccessControl() {
           *,
           access_requests(*)
         `)
-        .or('role.eq.produccion,card_number.is.not.null')
+        .or('role.eq.produccion,card_number.is.not_null')
         .order('full_name', { ascending: true });
 
       if (error) throw error;
