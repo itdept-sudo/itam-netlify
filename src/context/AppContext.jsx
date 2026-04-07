@@ -161,9 +161,32 @@ export function AppProvider({ children }) {
 
     const ch = supabase.channel("itam-rt")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "tickets" }, handleNewTicket)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tickets" }, debouncedFetch)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tickets" }, async (payload) => {
+        if (!isAdmin && payload.new.user_id === session?.user?.id && payload.new.status !== payload.old?.status) {
+          setUnreadNotifications(p => {
+            if (p.some(n => n.id === payload.new.id + "_status")) return p;
+            return [{ id: payload.new.id + "_status", title: "Cambio de Estatus: " + payload.new.status, ticket_number: payload.new.ticket_number, created_at: new Date().toISOString(), type: "status" }, ...p].slice(0, 10);
+          });
+        }
+        debouncedFetch();
+      })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "tickets" }, debouncedFetch)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "ticket_comments" }, debouncedFetch)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "ticket_comments" }, async (payload) => {
+        const newC = payload.new;
+        const { data: ticket } = await supabase.from("tickets").select("*").eq("id", newC.ticket_id).single();
+        if (ticket) {
+          if (!isAdmin && newC.is_staff && ticket.user_id === session?.user?.id) {
+             setUnreadNotifications(p => [{
+                id: newC.id, title: "IT respondió a tu ticket", ticket_number: ticket.ticket_number, type: "new_comment", created_at: newC.created_at
+             }, ...p].slice(0, 10));
+          } else if (isAdmin && !newC.is_staff) {
+             setUnreadNotifications(p => [{
+                id: newC.id, title: "Nuevo comentario del usuario", ticket_number: ticket.ticket_number, type: "new_comment", created_at: newC.created_at
+             }, ...p].slice(0, 10));
+          }
+        }
+        debouncedFetch();
+      })
       .subscribe();
 
     return () => { 

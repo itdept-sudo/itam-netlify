@@ -113,6 +113,16 @@ export default function UserPortal() {
     }));
   };
 
+  const selectTicket = async (ticket) => {
+    setDetailTicket(ticket);
+    const { data: comments } = await supabase
+      .from("ticket_comments")
+      .select("*")
+      .eq("ticket_id", ticket.id)
+      .order("created_at");
+    setDetailTicket(prev => prev ? { ...prev, comments: comments || [] } : prev);
+  };
+
   const handleComment = async (ticketId) => {
     if (!comment.trim() && commentPhotos.length === 0) return;
     setCommentUploading(true);
@@ -200,7 +210,7 @@ export default function UserPortal() {
           const model = item ? models.find(m => m.id === item.model_id) : null;
           const TIcon = TICKET_COLORS[ticket.status]?.icon || AlertCircle;
           return (
-            <button key={ticket.id} onClick={() => { setDetailTicket(ticket); setComment(""); }} className="w-full flex items-center gap-4 p-4 rounded-2xl bg-[#151A24] border border-slate-700/50 hover:border-slate-600/50 transition-all text-left">
+            <button key={ticket.id} onClick={() => { selectTicket(ticket); setComment(""); }} className="w-full flex items-center gap-4 p-4 rounded-2xl bg-[#151A24] border border-slate-700/50 hover:border-slate-600/50 transition-all text-left">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: TICKET_COLORS[ticket.status]?.bg }}>
                 <TIcon size={18} style={{ color: TICKET_COLORS[ticket.status]?.text }} />
               </div>
