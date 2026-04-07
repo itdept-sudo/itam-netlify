@@ -51,6 +51,8 @@ export default function TicketsView() {
   const [form, setForm] = useState({ title: "", description: "", user_id: "", item_id: "", photos: [] });
   const [uploading, setUploading] = useState(false);
   const [comment, setComment] = useState("");
+  const [commentPhotos, setCommentPhotos] = useState([]);
+  const [commentUploading, setCommentUploading] = useState(false);
 
   const [pagedTickets, setPagedTickets] = useState([]);
   const [page, setPage] = useState(0);
@@ -153,17 +155,40 @@ export default function TicketsView() {
   };
 
   const handleComment = async (ticketId) => {
-    if (!comment.trim()) return;
-    const data = await addTicketComment(ticketId, comment, true, user.id);
-    if (data && detailTicket?.id === ticketId) {
-      setDetailTicket(prev => prev ? { ...prev, comments: [...(prev.comments || []), data] } : prev);
-      setPagedTickets(p => p.map(t => t.id === ticketId ? { 
-        ...t, 
-        ticket_comments: [{ count: (t.ticket_comments?.[0]?.count || 0) + 1 }] 
-      } : t));
+    if (!comment.trim() && commentPhotos.length === 0) return;
+    setCommentUploading(true);
+    try {
+      let uploadedUrls = [];
+      if (commentPhotos.length > 0) {
+        uploadedUrls = await Promise.all(commentPhotos.map(p => uploadTicketPhoto(p.file)));
+      }
+      const data = await addTicketComment(ticketId, comment.trim(), true, user.id, uploadedUrls);
+      if (data && detailTicket?.id === ticketId) {
+        setDetailTicket(prev => prev ? { ...prev, comments: [...(prev.comments || []), data] } : prev);
+        setPagedTickets(p => p.map(t => t.id === ticketId ? { 
+          ...t, 
+          ticket_comments: [{ count: (t.ticket_comments?.[0]?.count || 0) + 1 }] 
+        } : t));
+      }
+      setComment("");
+      setCommentPhotos([]);
+    } catch (err) {
+      alert("Error subiendo imágenes del comentario: " + err.message);
+    } finally {
+      setCommentUploading(false);
     }
-    setComment("");
   };
+
+  const handleCommentPhotoSelect = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    const availableSlots = 3 - (commentPhotos.length || 0);
+    const toAdd = files.slice(0, availableSlots);
+    if (files.length > availableSlots) alert("Solo puedes adjuntar un máximo de 3 imágenes.");
+    const newPhotos = toAdd.map(file => ({ file, previewUrl: URL.createObjectURL(file) }));
+    setCommentPhotos(p => [...p, ...newPhotos]);
+  };
+  const removeCommentPhoto = (index) => setCommentPhotos(p => p.filter((_, i) => i !== index));
 
   const userItemsForForm = form.user_id ? items.filter(i => i.user_id === form.user_id) : [];
 
@@ -343,16 +368,43 @@ export default function TicketsView() {
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${c.is_staff ? "bg-emerald-500/20 text-emerald-400" : "bg-blue-500/20 text-blue-400"}`}>{cInitials}</div>
                         <div className={`max-w-[75%] p-3 rounded-xl ${c.is_staff ? "bg-emerald-500/5 border border-emerald-500/20" : "bg-slate-800/30 border border-slate-700/30"}`}>
                           <div className="flex items-center gap-2 mb-1"><span className="text-xs font-medium text-slate-300">{cName}</span><span className="text-[10px] text-slate-600">{new Date(c.created_at).toLocaleString()}</span></div>
-                          <p className="text-sm text-slate-300">{c.text}</p>
+                          {c.text && <p className="text-sm text-slate-300 whitespace-pre-wrap">{c.text}</p>}
+                          {c.images && c.images.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-slate-700/30">
+                              {c.images.map((imgUrl, i) => (
+                                <a key={i} href={imgUrl} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg border border-slate-700/50 hover:border-blue-500/50 overflow-hidden transition-colors">
+                                  <img src={imgUrl} alt="Attached" className="w-full h-full object-cover" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
                   })}
                   {(!detailTicket.comments || detailTicket.comments.length === 0) && <p className="text-sm text-slate-500 text-center py-4">{t("noComments")}</p>}
                 </div>
+                {commentPhotos.length > 0 && (
+                  <div className="flex gap-3 mb-2 p-2 bg-slate-800/20 rounded-xl border border-slate-700/30">
+                    {commentPhotos.map((photo, i) => (
+                      <div key={i} className="relative w-12 h-12 rounded-lg border border-slate-700/50 overflow-hidden">
+                        <img src={photo.previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                        <button onClick={() => removeCommentPhoto(i)} className="absolute top-0 right-0 p-0.5 bg-black/60 rounded-bl text-white hover:bg-red-500/80 transition-colors">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <input value={comment} onChange={e => setComment(e.target.value)} placeholder={t("replyAsSupport")} className="flex-1 px-3 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50" onKeyDown={e => e.key === "Enter" && handleComment(detailTicket.id)} />
-                  <Btn onClick={() => handleComment(detailTicket.id)}><Send size={14} /></Btn>
+                  <label className="flex items-center justify-center bg-slate-800/40 border border-slate-700/50 rounded-xl px-3 hover:bg-slate-700/40 cursor-pointer text-slate-400 hover:text-slate-200 transition-colors">
+                    <Plus size={16} />
+                    <input type="file" multiple accept="image/*" className="hidden" onChange={handleCommentPhotoSelect} />
+                  </label>
+                  <input disabled={commentUploading} value={comment} onChange={e => setComment(e.target.value)} placeholder={t("replyAsSupport")} className="flex-1 px-3 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 disabled:opacity-50" onKeyDown={e => e.key === "Enter" && handleComment(detailTicket.id)} />
+                  <Btn onClick={() => handleComment(detailTicket.id)} disabled={commentUploading || (!comment.trim() && commentPhotos.length === 0)}>
+                    {commentUploading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  </Btn>
                 </div>
               </div>
             </div>

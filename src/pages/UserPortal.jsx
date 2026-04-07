@@ -50,6 +50,8 @@ export default function UserPortal() {
   const [form, setForm] = useState({ title: "", description: "", item_id: "", photos: [] });
   const [uploading, setUploading] = useState(false);
   const [comment, setComment] = useState("");
+  const [commentPhotos, setCommentPhotos] = useState([]);
+  const [commentUploading, setCommentUploading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
 
   const myTickets = tickets.filter(t_obj => t_obj.user_id === user?.id);
@@ -112,15 +114,38 @@ export default function UserPortal() {
   };
 
   const handleComment = async (ticketId) => {
-    if (!comment.trim()) return;
-    const data = await addTicketComment(ticketId, comment, false, user.id);
-    if (data) {
-      setDetailTicket(prev => prev ? { ...prev, comments: [...prev.comments, data] } : prev);
+    if (!comment.trim() && commentPhotos.length === 0) return;
+    setCommentUploading(true);
+    try {
+      let uploadedUrls = [];
+      if (commentPhotos.length > 0) {
+        uploadedUrls = await Promise.all(commentPhotos.map(p => uploadTicketPhoto(p.file)));
+      }
+      const data = await addTicketComment(ticketId, comment.trim(), false, user.id, uploadedUrls);
+      if (data && detailTicket?.id === ticketId) {
+        setDetailTicket(prev => prev ? { ...prev, comments: [...(prev.comments || []), data] } : prev);
+        const tf = await fetchTickets();
+        if (tf) setMyTickets(tf);
+      }
       setComment("");
+      setCommentPhotos([]);
+    } catch (err) {
+      alert("Error subiendo imágenes del comentario: " + err.message);
+    } finally {
+      setCommentUploading(false);
     }
   };
 
-  // Sync detail ticket with latest data
+  const handleCommentPhotoSelect = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    const availableSlots = 3 - (commentPhotos.length || 0);
+    const toAdd = files.slice(0, availableSlots);
+    if (files.length > availableSlots) alert("Solo puedes adjuntar un máximo de 3 imágenes.");
+    const newPhotos = toAdd.map(file => ({ file, previewUrl: URL.createObjectURL(file) }));
+    setCommentPhotos(p => [...p, ...newPhotos]);
+  };
+  const removeCommentPhoto = (index) => setCommentPhotos(p => p.filter((_, i) => i !== index));
   const currentDetail = detailTicket ? myTickets.find(t => t.id === detailTicket.id) || detailTicket : null;
 
   return (
@@ -296,26 +321,53 @@ export default function UserPortal() {
                     const cUser = c.is_staff
                       ? { name: t("itSupport"), avatar: "IT" }
                       : { name: profile?.full_name || t("user"), avatar: profile?.full_name?.split(" ").map(w => w[0]).join("").slice(0, 2) || "??" };
+                    const cName = cUser.name;
                     return (
                       <div key={c.id} className={`flex gap-3 ${c.is_staff ? "flex-row-reverse" : ""}`}>
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${c.is_staff ? "bg-emerald-500/20 text-emerald-400" : "bg-blue-500/20 text-blue-400"}`}>{cUser.avatar}</div>
-                        <div className={`max-w-[75%] p-3 rounded-xl ${c.is_staff ? "bg-emerald-500/5 border border-emerald-500/20" : "bg-slate-800/30 border border-slate-700/30"}`}>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-medium text-slate-300">{cUser.name}</span>
-                            <span className="text-[10px] text-slate-600">{new Date(c.created_at).toLocaleString()}</span>
+                        <div className={`max-w-[85%] p-3 rounded-xl ${c.is_staff ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-slate-800/60 border border-slate-700/50"}`}>
+                        <div className="flex items-center gap-2 mb-1"><span className="text-xs font-semibold text-slate-200">{cName}</span><span className="text-[10px] text-slate-500">{new Date(c.created_at).toLocaleString()}</span></div>
+                        {c.text && <p className="text-sm text-slate-300 whitespace-pre-wrap">{c.text}</p>}
+                        {c.images && c.images.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-slate-700/30">
+                            {c.images.map((imgUrl, i) => (
+                              <a key={i} href={imgUrl} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg border border-slate-700/50 hover:border-blue-500/50 overflow-hidden transition-colors">
+                                <img src={imgUrl} alt="Attached" className="w-full h-full object-cover" />
+                              </a>
+                            ))}
                           </div>
-                          <p className="text-sm text-slate-300">{c.text}</p>
-                        </div>
+                        )}
+                      </div>
                       </div>
                     );
                   })}
                   {(!currentDetail.comments || currentDetail.comments.length === 0) && <p className="text-sm text-slate-500 text-center py-4">{t("noCommentsUser")}</p>}
                 </div>
                 {currentDetail.status !== "Cerrado" ? (
-                  <div className="flex gap-2">
-                    <input value={comment} onChange={e => setComment(e.target.value)} placeholder={t("writeMessage")} className="flex-1 px-3 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50" onKeyDown={e => e.key === "Enter" && handleComment(currentDetail.id)} />
-                    <Btn onClick={() => handleComment(currentDetail.id)}><Send size={14} /></Btn>
-                  </div>
+                  <>
+                  {commentPhotos.length > 0 && (
+                <div className="flex gap-3 mb-2 p-2 bg-slate-800/40 rounded-xl border border-slate-700/50">
+                  {commentPhotos.map((photo, i) => (
+                    <div key={i} className="relative w-12 h-12 rounded-lg border border-slate-700/50 overflow-hidden">
+                      <img src={photo.previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                      <button onClick={() => removeCommentPhoto(i)} className="absolute top-0 right-0 p-0.5 bg-black/60 rounded-bl text-white hover:bg-red-500/80 transition-colors">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <label className="flex items-center justify-center bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 hover:bg-slate-700/60 cursor-pointer text-slate-400 hover:text-slate-200 transition-colors">
+                  <Plus size={16} />
+                  <input type="file" multiple accept="image/*" className="hidden" onChange={handleCommentPhotoSelect} />
+                </label>
+                <input disabled={commentUploading || detailTicket.status === "Cerrado"} value={comment} onChange={e => setComment(e.target.value)} placeholder={detailTicket.status === "Cerrado" ? t("ticketClosed") : t("replyPlaceholder")} className="flex-1 px-4 py-3 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 disabled:opacity-50" onKeyDown={e => e.key === "Enter" && detailTicket.status !== "Cerrado" && handleComment(detailTicket.id)} />
+                <Btn disabled={detailTicket.status === "Cerrado" || commentUploading || (!comment.trim() && commentPhotos.length === 0)} onClick={() => handleComment(detailTicket.id)}>
+                  {commentUploading ? <Loader2 size={14} className="animate-spin" /> : <Send size={15} />}
+                </Btn>
+              </div>
+              </>
                 ) : (
                   <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-center">
                     <p className="text-xs text-emerald-400">{t("ticketClosed")}</p>

@@ -323,9 +323,9 @@ export function AppProvider({ children }) {
       }
     }
   };
-  const addTicketComment = async (ticketId, text, isStaff, userId) => {
+  const addTicketComment = async (ticketId, text, isStaff, userId, images = []) => {
     const { data, error } = await supabase.from("ticket_comments")
-      .insert({ ticket_id: ticketId, user_id: userId, text, is_staff: isStaff }).select().single();
+      .insert({ ticket_id: ticketId, user_id: userId, text, is_staff: isStaff, images }).select().single();
     if (error) { showToast(error.message, "error"); return null; }
     setTickets(p => p.map(t => {
       if (t.id === ticketId) {
