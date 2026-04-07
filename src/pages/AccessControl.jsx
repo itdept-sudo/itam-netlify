@@ -165,12 +165,11 @@ export default function AccessControl() {
 
         setFoundUser(finalUser);
         
-        // Buscar equipos asignados
         const { data: itemsFound } = await supabase
           .from("items")
           .select(`
             *,
-            models(name)
+            models(name, photo)
           `)
           .eq("user_id", finalUser.id);
         
@@ -595,11 +594,20 @@ export default function AccessControl() {
                           <div>
                             <h4 className="text-amber-500 font-bold text-sm uppercase tracking-wide">Atención: Recuperar Equipo</h4>
                             <p className="text-slate-300 text-xs mt-1">Este usuario tiene equipos asignados que deben ser recolectados:</p>
-                            <ul className="mt-2 space-y-1">
+                            <ul className="mt-3 space-y-2">
                               {assignedItems.map(item => (
-                                <li key={item.id} className="text-[11px] text-slate-200 bg-amber-500/5 px-2 py-1 rounded border border-amber-500/10 flex justify-between">
-                                  <span>• {item.models?.name || 'Equipo Generico'}</span>
-                                  <span className="font-mono text-amber-500/70">{item.serial_number}</span>
+                                <li key={item.id} className="text-[11px] text-slate-200 bg-amber-500/5 p-2 rounded-lg border border-amber-500/10 flex items-center gap-3">
+                                  {item.models?.photo ? (
+                                    <img src={item.models.photo} alt={item.models.name} className="w-10 h-10 object-cover rounded-md border border-amber-500/20 bg-black/20" />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500/50">
+                                      <AlertTriangle size={14} />
+                                    </div>
+                                  )}
+                                  <div className="flex-1">
+                                    <span className="block font-medium text-sm text-amber-100">{item.models?.name || "Equipo Genérico"}</span>
+                                    <span className="font-mono text-amber-400 text-xs">S/N: {item.serial_number}</span>
+                                  </div>
                                 </li>
                               ))}
                             </ul>
