@@ -159,10 +159,13 @@ function AppShell() {
                       <button 
                         key={n.id} 
                         onClick={() => {
-                          setPage("tickets");
+                          const targetPage = isAdmin ? "tickets" : "portal";
+                          setPage(targetPage);
                           markNotificationRead(n.id);
                           setShowNotifications(false);
-                          window.history.pushState(null, "", "/tickets");
+                          window.history.pushState(null, "", "/" + targetPage + "?ticket=" + n.ticket_id);
+                          // Trigger popstate so components can react to URL change without refreshing
+                          window.dispatchEvent(new PopStateEvent('popstate'));
                         }}
                         className="w-full p-4 border-b border-slate-800/50 hover:bg-slate-800/30 text-left transition-colors flex gap-3"
                       >

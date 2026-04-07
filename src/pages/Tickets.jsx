@@ -97,6 +97,23 @@ export default function TicketsView() {
   useEffect(() => { fetchPagedTickets(); }, [page, statusFilter, searchTerm]);
   useEffect(() => { setPage(0); }, [statusFilter, searchTerm]);
 
+  useEffect(() => {
+    const handleUrlTicket = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const tkId = params.get("ticket");
+      if (tkId) {
+        const { data } = await supabase.from("tickets").select("*").eq("id", tkId).single();
+        if (data) {
+          selectTicket(data);
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+      }
+    };
+    window.addEventListener("popstate", handleUrlTicket);
+    setTimeout(handleUrlTicket, 500); 
+    return () => window.removeEventListener("popstate", handleUrlTicket);
+  }, []);
+
   const openNew = () => { setForm({ title: "", description: "", user_id: users[0]?.id || "", item_id: "", photos: [] }); setModalOpen(true); };
 
   const selectTicket = async (ticket) => {

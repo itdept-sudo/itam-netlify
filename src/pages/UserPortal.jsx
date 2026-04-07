@@ -58,6 +58,24 @@ export default function UserPortal() {
   const myItems = items.filter(i => i.user_id === user?.id);
   const filtered = myTickets.filter(t_obj => statusFilter === "all" || t_obj.status === statusFilter);
 
+  useEffect(() => {
+    const handleUrlTicket = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const tkId = params.get("ticket");
+      if (tkId) {
+        const { data } = await supabase.from("tickets").select("*").eq("id", tkId).single();
+        if (data) {
+          selectTicket(data);
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+      }
+    };
+    window.addEventListener("popstate", handleUrlTicket);
+    // Give it a small delay so initial fetchTickets/context resolves if needed, though direct DB call is safe
+    setTimeout(handleUrlTicket, 500); 
+    return () => window.removeEventListener("popstate", handleUrlTicket);
+  }, []);
+
   const openNew = () => { setForm({ title: "", description: "", item_id: "", photos: [] }); setModalOpen(true); };
 
   const save = async () => {
