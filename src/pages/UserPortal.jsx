@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Send, ChevronRight, MessageSquare, Inbox, AlertCircle, Clock, CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useApp } from "../context/AppContext";
