@@ -134,8 +134,6 @@ export default function UserPortal() {
       const data = await addTicketComment(ticketId, comment.trim(), false, user.id, uploadedUrls);
       if (data && detailTicket?.id === ticketId) {
         setDetailTicket(prev => prev ? { ...prev, comments: [...(prev.comments || []), data] } : prev);
-        const tf = await fetchTickets();
-        if (tf) setMyTickets(tf);
       }
       setComment("");
       setCommentPhotos([]);
