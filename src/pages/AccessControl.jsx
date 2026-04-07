@@ -606,7 +606,7 @@ export default function AccessControl() {
                                   )}
                                   <div className="flex-1">
                                     <span className="block font-medium text-sm text-amber-100">{item.models?.name || "Equipo Genérico"}</span>
-                                    <span className="font-mono text-amber-400 text-xs">S/N: {item.serial_number}</span>
+                                    <span className="font-mono text-amber-400 text-xs">S/N: {item.serial}</span>
                                   </div>
                                 </li>
                               ))}
