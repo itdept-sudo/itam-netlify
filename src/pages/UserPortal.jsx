@@ -156,7 +156,7 @@ export default function UserPortal() {
     setCommentPhotos(p => [...p, ...newPhotos]);
   };
   const removeCommentPhoto = (index) => setCommentPhotos(p => p.filter((_, i) => i !== index));
-  const currentDetail = detailTicket ? myTickets.find(t => t.id === detailTicket.id) || detailTicket : null;
+  const currentDetail = detailTicket ? { ...detailTicket, ...(myTickets.find(t => t.id === detailTicket.id) || {}), comments: detailTicket.comments } : null;
 
   return (
     <div className="space-y-6">
