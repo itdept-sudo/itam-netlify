@@ -243,6 +243,8 @@ export function AppProvider({ children }) {
       // Supabase duplicate key error code is 23505
       if (error.code === "23505") {
         showToast('Área ya existe', 'error');
+        // Refresh areas to ensure UI reflects existing entry
+        await syncMetadata();
         throw new Error('Área ya existe');
       }
       showToast(error.message, "error");
