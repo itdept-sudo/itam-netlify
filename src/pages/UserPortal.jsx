@@ -44,7 +44,7 @@ async function uploadTicketPhoto(file) {
 
 export default function UserPortal() {
   const { tickets, items, models, brands, users, createTicket, addTicketComment, showToast, t } = useApp();
-  const { user, isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
   const [detailTicket, setDetailTicket] = useState(null);
   const [form, setForm] = useState({ title: "", description: "", item_id: "", photos: [] });
