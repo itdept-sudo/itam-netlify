@@ -44,7 +44,7 @@ async function uploadTicketPhoto(file) {
 
 export default function UserPortal() {
   const { tickets, items, models, brands, users, createTicket, addTicketComment, showToast, t } = useApp();
-  const { user, profile } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
   const [detailTicket, setDetailTicket] = useState(null);
   const [form, setForm] = useState({ title: "", description: "", item_id: "", photos: [] });
@@ -55,7 +55,7 @@ export default function UserPortal() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   const myTickets = tickets.filter(t_obj => t_obj.user_id === user?.id);
-  const myItems = items.filter(i => i.user_id === user?.id);
+  const myItems = isAdmin ? items : items.filter(i => i.user_id === user?.id);
   const filtered = myTickets.filter(t_obj => statusFilter === "all" || t_obj.status === statusFilter);
 
   useEffect(() => {

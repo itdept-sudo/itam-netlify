@@ -207,7 +207,7 @@ export default function TicketsView() {
   };
   const removeCommentPhoto = (index) => setCommentPhotos(p => p.filter((_, i) => i !== index));
 
-  const userItemsForForm = form.user_id ? items.filter(i => i.user_id === form.user_id) : [];
+  const userItemsForForm = isAdmin ? items : (form.user_id ? items.filter(i => i.user_id === form.user_id) : []);
 
   return (
     <div className="space-y-6">
