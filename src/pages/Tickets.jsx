@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 import { TICKET_STATUSES, TICKET_COLORS } from "../data/constants";
-import { StatusBadge, EmptyState, Modal, Input, Select, Textarea, Btn } from "../components/ui";
+import { StatusBadge, EmptyState, Modal, Input, Select, Textarea, Btn, SearchableSelect } from "../components/ui";
 
 function resizeImage(file, maxSize = 1000) {
   return new Promise((resolve) => {
@@ -113,6 +113,16 @@ export default function TicketsView() {
     setTimeout(handleUrlTicket, 500); 
     return () => window.removeEventListener("popstate", handleUrlTicket);
   }, []);
+
+  // Auto-select first asset when user changes
+  useEffect(() => {
+    if (form.user_id && !form.item_id) {
+      const userAssets = items.filter(i => i.user_id === form.user_id);
+      if (userAssets.length > 0) {
+        setForm(p => ({ ...p, item_id: userAssets[0].id }));
+      }
+    }
+  }, [form.user_id, items]);
 
   const openNew = () => { setForm({ title: "", description: "", user_id: users[0]?.id || "", item_id: "", photos: [] }); setModalOpen(true); };
 
@@ -289,7 +299,22 @@ export default function TicketsView() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={t("newTicket")}>
         <div className="space-y-4">
           <Select label={t("reportedBy")} options={[{ value: "", label: t("select") + "..." }, ...users.filter(u => u.is_active !== false).map(u => ({ value: u.id, label: u.full_name }))]} value={form.user_id} onChange={e => setForm(p => ({ ...p, user_id: e.target.value, item_id: "" }))} />
-          <Select label={t("optionalAsset")} options={[{ value: "", label: t("noneGeneral") }, ...userItemsForForm.map(i => { const m = models.find(x => x.id === i.model_id); return { value: i.id, label: `${m?.name || "—"} (${i.serial})` }; })]} value={form.item_id} onChange={e => setForm(p => ({ ...p, item_id: e.target.value }))} />
+          <SearchableSelect 
+            label={t("optionalAsset")} 
+            placeholder={t("noneGeneral")}
+            options={userItemsForForm.map(i => { 
+                const m = models.find(x => x.id === i.model_id); 
+                const b = m ? brands.find(x => x.id === m.brand_id) : null;
+                return { 
+                    value: i.id, 
+                    label: `${b?.name || ""} ${m?.name || "—"}`, 
+                    sublabel: `S/N: ${i.serial}`,
+                    image: m?.photo
+                }; 
+            })} 
+            value={form.item_id} 
+            onChange={e => setForm(p => ({ ...p, item_id: e.target.value }))} 
+          />
           <Input label={t("title")} value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder={t("summaryPlaceholder")} />
           <Textarea label={t("description")} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder={t("detailPlaceholder")} />
           

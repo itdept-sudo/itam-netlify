@@ -299,7 +299,22 @@ export function AppProvider({ children }) {
     if (error) { showToast(error.message, "error"); return; }
     setItems(p => p.map(i => i.id === id ? { ...i, ...updates } : i));
     if (movementNote) {
-      await supabase.from("movements").insert({ item_id: id, user_id: updates.user_id || null, action: updates.status || "Actualizado", note: movementNote });
+      // If the update involves a user or area change, we make the note more descriptive if it's not already
+      let finalNote = movementNote;
+      if (updates.user_id && !movementNote.includes("Asignado a usuario")) {
+        const u = users.find(x => x.id === updates.user_id);
+        if (u) finalNote = `Asignado a usuario: ${u.full_name}`;
+      } else if (updates.area_id && !movementNote.includes("Asignado a área")) {
+        const a = areas.find(x => x.id === updates.area_id);
+        if (a) finalNote = `Asignado a área: ${a.name}`;
+      }
+
+      await supabase.from("movements").insert({ 
+        item_id: id, 
+        user_id: updates.user_id || null, 
+        action: updates.status || "Actualizado", 
+        note: finalNote 
+      });
       const { data: mvs } = await supabase.from("movements").select("*").order("created_at", { ascending: false });
       if (mvs) setMovements(mvs);
     }
@@ -329,6 +344,20 @@ export function AppProvider({ children }) {
   const createTicket = async (ticket) => {
     const { data, error } = await supabase.from("tickets").insert(ticket).select().single();
     if (error) { showToast(error.message, "error"); return null; }
+    
+    // Register movement if ticket is associated with an asset
+    if (data.item_id) {
+       await supabase.from("movements").insert({
+         item_id: data.item_id,
+         user_id: data.user_id,
+         action: "Ticket",
+         note: `Ticket [TK-${data.ticket_number}] generado: ${data.title}`
+       });
+       // Refresh movements
+       const { data: mvData } = await supabase.from("movements").select("*").order("created_at", { ascending: false }).limit(100);
+       if (mvData) setMovements(mvData);
+    }
+
     setTickets(p => [{ ...data, comments: [] }, ...p]);
     showToast("ticketCreated"); return data;
   };

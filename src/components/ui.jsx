@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useApp } from "../context/AppContext";
 import {
-  CheckCircle2, XCircle, AlertCircle, X, Loader2, Package
+  CheckCircle2, XCircle, AlertCircle, X, Loader2, Package, Search, ChevronDown, Check
 } from "lucide-react";
 
 /* ─── Toast ─── */
@@ -241,6 +241,88 @@ export function MiniBar({ data, colors }) {
           <span className="text-[10px] text-slate-500 truncate w-full text-center">{d.label}</span>
         </div>
       ))}
+    </div>
+  );
+}
+/* ─── Searchable Select ─── */
+export function SearchableSelect({ label, options, value, onChange, placeholder = "Buscar...", className = "" }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
+
+  const selected = useMemo(() => options.find(o => o.value === value), [options, value]);
+
+  const filtered = useMemo(() => {
+    if (!search) return options;
+    return options.filter(o => 
+      o.label.toLowerCase().includes(search.toLowerCase()) || 
+      (o.sublabel && o.sublabel.toLowerCase().includes(search.toLowerCase()))
+    );
+  }, [options, search]);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div className={`space-y-1.5 relative ${className}`} ref={containerRef}>
+      {label && <label className="text-xs font-medium text-slate-400 uppercase tracking-wider block">{label}</label>}
+      
+      <div 
+        onClick={() => setOpen(!open)}
+        className="w-full px-3 py-2.5 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-slate-200 cursor-pointer flex items-center justify-between hover:border-blue-500/30 transition-all"
+      >
+        <div className="flex items-center gap-3 overflow-hidden">
+          {selected?.image && <img src={selected.image} alt="" className="w-6 h-6 rounded-md object-cover border border-slate-700/50 flex-shrink-0" />}
+          <span className={selected ? "truncate" : "text-slate-500"}>{selected ? selected.label : placeholder}</span>
+        </div>
+        <ChevronDown size={14} className={`text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
+      </div>
+
+      {open && (
+        <div className="absolute z-[100] w-full mt-2 bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden animate-fade-in-down">
+          <div className="p-2 border-b border-slate-700/30">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input 
+                autoFocus
+                type="text" 
+                value={search} 
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Filtrar..."
+                className="w-full pl-9 pr-4 py-2 bg-slate-800/40 border border-slate-700/30 rounded-xl text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50"
+              />
+            </div>
+          </div>
+          
+          <div className="max-h-[250px] overflow-y-auto p-1 custom-scrollbar">
+            {filtered.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-500">{placeholder === "Buscar..." ? "Sin resultados" : "No hay opciones"}</div>
+            ) : (
+              filtered.map(o => (
+                <div 
+                  key={o.value} 
+                  onClick={() => { onChange({ target: { value: o.value } }); setOpen(false); setSearch(""); }}
+                  className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-colors ${value === o.value ? "bg-blue-600/10 border border-blue-500/20" : "hover:bg-slate-800/60 border border-transparent"}`}
+                >
+                  <div className="w-10 h-10 rounded-lg bg-slate-800 overflow-hidden border border-slate-700/30 flex-shrink-0">
+                    {o.image ? <img src={o.image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-600"><Package size={16} /></div>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium truncate ${value === o.value ? "text-blue-400" : "text-slate-200"}`}>{o.label}</p>
+                    {o.sublabel && <p className="text-[11px] text-slate-500 truncate">{o.sublabel}</p>}
+                  </div>
+                  {value === o.value && <Check size={14} className="text-blue-400" />}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

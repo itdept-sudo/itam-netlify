@@ -7,7 +7,7 @@ import { STATUSES, ASSET_ICONS } from "../data/constants";
 import { Badge, StatusBadge, EmptyState, Modal, Input, Select, Btn } from "../components/ui";
 
 export default function InventoryView() {
-  const { models, brands, assetTypes, areas, users, movements, createItem, updateItem, deleteItem, dataLoading, t } = useApp();
+  const { models, brands, assetTypes, areas, users, movements, tickets, createItem, updateItem, deleteItem, dataLoading, t } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ serial: "", model_id: "", status: "Disponible", user_id: "", area_id: "" });
@@ -98,6 +98,36 @@ export default function InventoryView() {
 
   const selectedModel = models.find(m => m.id === form.model_id);
   const selectedBrand = selectedModel ? brands.find(b => b.id === selectedModel.brand_id) : null;
+
+  const renderMovementNote = (note) => {
+    if (!note) return "";
+    const reg = /\[TK-(\d+)\]/;
+    const match = note.match(reg);
+    if (match) {
+      const folio = match[1];
+      const ticket = tickets.find(t_obj => String(t_obj.ticket_number) === folio);
+      if (ticket) {
+        const parts = note.split(match[0]);
+        return (
+          <>
+            {parts[0]}
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                window.history.pushState(null, "", `/tickets?ticket=${ticket.id}`);
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="text-blue-400 hover:text-blue-300 font-bold underline"
+            >
+              [TK-{folio}]
+            </button>
+            {parts[1]}
+          </>
+        );
+      }
+    }
+    return note;
+  };
 
   // Reset to page 0 when filtering
   useEffect(() => { setPage(0); }, [filter, statusFilter, typeFilter]);
@@ -291,7 +321,7 @@ export default function InventoryView() {
               {itemMvs.length > 0 && (
                 <div>
                   <h5 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">{t("history")}</h5>
-                  <div className="space-y-2">{itemMvs.map(mv => <div key={mv.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-800/20 border border-slate-700/20"><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><div className="flex-1"><p className="text-sm text-slate-300">{mv.note}</p><p className="text-xs text-slate-500">{new Date(mv.created_at).toLocaleString()}</p></div><Badge color="gray">{t(mv.action)}</Badge></div>)}</div>
+                  <div className="space-y-2">{itemMvs.map(mv => <div key={mv.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-800/20 border border-slate-700/20"><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><div className="flex-1"><p className="text-sm text-slate-300">{renderMovementNote(mv.note)}</p><p className="text-xs text-slate-500">{new Date(mv.created_at).toLocaleString()}</p></div><Badge color="gray">{t(mv.action)}</Badge></div>)}</div>
                 </div>
               )}
             </div>

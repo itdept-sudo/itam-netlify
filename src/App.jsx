@@ -62,6 +62,21 @@ function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // Sync state with URL manually for the custom router
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.substring(1);
+      if (path && (Object.keys(adminPages).includes(path) || Object.keys(userPages).includes(path) || Object.keys(rrhhPages).includes(path))) {
+        setPage(path);
+      } else {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has("item")) setPage("inventory");
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   // When role resolves or changes, set appropriate default page
   useEffect(() => {
     setPage((prev) => {
