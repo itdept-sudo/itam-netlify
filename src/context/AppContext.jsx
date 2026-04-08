@@ -239,9 +239,18 @@ export function AppProvider({ children }) {
   // ── Areas CRUD ──
   const createArea = async (name) => {
     const { data, error } = await supabase.from("areas").insert({ name }).select().single();
-    if (error) { showToast(error.message, "error"); return null; }
+    if (error) {
+      // Supabase duplicate key error code is 23505
+      if (error.code === "23505") {
+        showToast('Área ya existe', 'error');
+        throw new Error('Área ya existe');
+      }
+      showToast(error.message, "error");
+      throw new Error(error.message);
+    }
     setAreas(p => [...p, data].sort((a, b) => a.name.localeCompare(b.name)));
-    showToast("areaCreated"); return data;
+    showToast("areaCreated");
+    return data;
   };
   const updateArea = async (id, name) => {
     const { error } = await supabase.from("areas").update({ name }).eq("id", id);

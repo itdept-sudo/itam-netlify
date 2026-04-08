@@ -189,9 +189,22 @@ export default function UsersView() {
 
   const saveArea = async () => {
     if (!areaForm.name) return;
-    if (editingArea) { await updateArea(editingArea.id, areaForm.name); }
-    else { await createArea(areaForm.name); }
-    setAreaModal(false);
+    // Check for duplicate area name (case-insensitive)
+    const exists = areas.some(a => a.name.toLowerCase() === areaForm.name.trim().toLowerCase());
+    if (exists) {
+      showToast('Área ya existe', 'error');
+      return;
+    }
+    try {
+      if (editingArea) {
+        await updateArea(editingArea.id, areaForm.name);
+      } else {
+        await createArea(areaForm.name);
+      }
+      setAreaModal(false);
+    } catch (err) {
+      console.error('Error creating area:', err);
+    }
   };
 
   const getAvatar = (u) => {
