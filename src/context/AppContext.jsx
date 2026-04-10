@@ -188,6 +188,9 @@ export function AppProvider({ children }) {
         }
         debouncedFetch();
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "areas" }, syncMetadata)
+      .on("postgres_changes", { event: "*", schema: "public", table: "brands" }, syncMetadata)
+      .on("postgres_changes", { event: "*", schema: "public", table: "asset_types" }, syncMetadata)
       .subscribe();
 
     return () => { 
@@ -200,19 +203,31 @@ export function AppProvider({ children }) {
   const createBrand = async (name) => {
     const { data, error } = await supabase.from("brands").insert({ name }).select().single();
     if (error) { showToast(error.message, "error"); return null; }
-    setBrands(p => [...p, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setBrands(p => {
+      const next = [...p, data].sort((a, b) => a.name.localeCompare(b.name));
+      localStorage.setItem("itam_brands", JSON.stringify(next));
+      return next;
+    });
     showToast("brandCreated"); return data;
   };
   const updateBrand = async (id, name) => {
     const { error } = await supabase.from("brands").update({ name }).eq("id", id);
     if (error) { showToast(error.message, "error"); return; }
-    setBrands(p => p.map(b => b.id === id ? { ...b, name } : b));
+    setBrands(p => {
+      const next = p.map(b => b.id === id ? { ...b, name } : b);
+      localStorage.setItem("itam_brands", JSON.stringify(next));
+      return next;
+    });
     showToast("brandUpdated");
   };
   const deleteBrand = async (id) => {
     const { error } = await supabase.from("brands").delete().eq("id", id);
     if (error) { showToast(error.message, "error"); return; }
-    setBrands(p => p.filter(b => b.id !== id));
+    setBrands(p => {
+      const next = p.filter(b => b.id !== id);
+      localStorage.setItem("itam_brands", JSON.stringify(next));
+      return next;
+    });
     showToast("brandDeleted", "error");
   };
 
@@ -220,19 +235,31 @@ export function AppProvider({ children }) {
   const createAssetType = async (name) => {
     const { data, error } = await supabase.from("asset_types").insert({ name }).select().single();
     if (error) { showToast(error.message, "error"); return null; }
-    setAssetTypes(p => [...p, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setAssetTypes(p => {
+      const next = [...p, data].sort((a, b) => a.name.localeCompare(b.name));
+      localStorage.setItem("itam_types", JSON.stringify(next));
+      return next;
+    });
     showToast("typeCreated"); return data;
   };
   const updateAssetType = async (id, name) => {
     const { error } = await supabase.from("asset_types").update({ name }).eq("id", id);
     if (error) { showToast(error.message, "error"); return; }
-    setAssetTypes(p => p.map(a => a.id === id ? { ...a, name } : a));
+    setAssetTypes(p => {
+      const next = p.map(a => a.id === id ? { ...a, name } : a);
+      localStorage.setItem("itam_types", JSON.stringify(next));
+      return next;
+    });
     showToast("typeUpdated");
   };
   const deleteAssetType = async (id) => {
     const { error } = await supabase.from("asset_types").delete().eq("id", id);
     if (error) { showToast(error.message, "error"); return; }
-    setAssetTypes(p => p.filter(a => a.id !== id));
+    setAssetTypes(p => {
+      const next = p.filter(a => a.id !== id);
+      localStorage.setItem("itam_types", JSON.stringify(next));
+      return next;
+    });
     showToast("typeDeleted", "error");
   };
 
@@ -240,30 +267,40 @@ export function AppProvider({ children }) {
   const createArea = async (name) => {
     const { data, error } = await supabase.from("areas").insert({ name }).select().single();
     if (error) {
-      // Supabase duplicate key error code is 23505
       if (error.code === "23505") {
         showToast('Área ya existe', 'error');
-        // Refresh areas to ensure UI reflects existing entry
         await syncMetadata();
         throw new Error('Área ya existe');
       }
       showToast(error.message, "error");
       throw new Error(error.message);
     }
-    setAreas(p => [...p, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setAreas(p => {
+      const next = [...p, data].sort((a, b) => a.name.localeCompare(b.name));
+      localStorage.setItem("itam_areas", JSON.stringify(next));
+      return next;
+    });
     showToast("areaCreated");
     return data;
   };
   const updateArea = async (id, name) => {
     const { error } = await supabase.from("areas").update({ name }).eq("id", id);
     if (error) { showToast(error.message, "error"); return; }
-    setAreas(p => p.map(a => a.id === id ? { ...a, name } : a));
+    setAreas(p => {
+      const next = p.map(a => a.id === id ? { ...a, name } : a);
+      localStorage.setItem("itam_areas", JSON.stringify(next));
+      return next;
+    });
     showToast("areaUpdated");
   };
   const deleteArea = async (id) => {
     const { error } = await supabase.from("areas").delete().eq("id", id);
     if (error) { showToast(error.message, "error"); return; }
-    setAreas(p => p.filter(a => a.id !== id));
+    setAreas(p => {
+      const next = p.filter(a => a.id !== id);
+      localStorage.setItem("itam_areas", JSON.stringify(next));
+      return next;
+    });
     showToast("areaDeleted", "error");
   };
 
