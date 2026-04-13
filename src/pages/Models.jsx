@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Search, Plus, Edit, Trash2, X, Tag, Save, Package, Upload, Camera } from "lucide-react";
+import { Search, Plus, Edit, Trash2, X, Tag, Save, Package, Upload, Camera, UserCheck, AlertCircle, BarChart3 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { supabase } from "../lib/supabase";
 import { ASSET_ICONS } from "../data/constants";
@@ -43,7 +43,7 @@ async function uploadModelPhoto(file) {
 }
 
 export default function ModelsView() {
-  const { models, brands, assetTypes, createModel, updateModel, deleteModel, createBrand, updateBrand, deleteBrand, createAssetType, updateAssetType, deleteAssetType, showToast, t } = useApp();
+  const { items, models, brands, assetTypes, createModel, updateModel, deleteModel, createBrand, updateBrand, deleteBrand, createAssetType, updateAssetType, deleteAssetType, showToast, t } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [brandModal, setBrandModal] = useState(false);
   const [typeModal, setTypeModal] = useState(false);
@@ -157,7 +157,44 @@ export default function ModelsView() {
                   <Badge color="purple">{brand?.name}</Badge>
                   <Badge color="blue">{m.type}</Badge>
                 </div>
-                <h4 className="text-sm font-semibold text-slate-200 mb-3">{m.name}</h4>
+                  <h4 className="text-sm font-semibold text-slate-200 mb-3">{m.name}</h4>
+                
+                {/* Stock Stats */}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-800/40 border border-slate-700/30">
+                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">{t("total")}</p>
+                    <div className="flex items-center gap-1.5">
+                      <BarChart3 size={10} className="text-slate-400" />
+                      <p className="text-xs font-bold text-slate-300">
+                        {items.filter(i => i.model_id === m.id).length}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-800/40 border border-slate-700/30">
+                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">{t("assigned")}</p>
+                    <div className="flex items-center gap-1.5">
+                      <UserCheck size={10} className="text-blue-400" />
+                      <p className="text-xs font-bold text-blue-400/90">
+                        {items.filter(i => i.model_id === m.id && i.status === "Asignado").length}
+                      </p>
+                    </div>
+                  </div>
+                  {(() => {
+                    const stock = items.filter(i => i.model_id === m.id && i.status === "Disponible").length;
+                    return (
+                      <div className={`flex flex-col items-center justify-center p-2 rounded-xl border ${stock === 0 ? "bg-red-500/10 border-red-500/30 animate-pulse" : "bg-emerald-500/10 border-emerald-500/30"}`}>
+                        <p className={`text-[10px] uppercase font-bold mb-1 ${stock === 0 ? "text-red-400" : "text-emerald-500"}`}>{t("stock")}</p>
+                        <div className="flex items-center gap-1.5">
+                          {stock === 0 ? <AlertCircle size={10} className="text-red-400" /> : <Package size={10} className="text-emerald-500" />}
+                          <p className={`text-xs font-bold ${stock === 0 ? "text-red-400" : "text-emerald-500"}`}>
+                            {stock}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 <div className="flex flex-wrap gap-1.5">
                   {Object.entries(specs).slice(0, 4).map(([k, v]) => (
                     <span key={k} className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800/60 text-slate-400 border border-slate-700/30">{k}: {v}</span>
@@ -263,15 +300,35 @@ export default function ModelsView() {
             <Btn onClick={saveBrand}>{editingBrand ? t("update") : <><Plus size={14} /> {t("add")}</>}</Btn>
           </div>
           <div className="space-y-1.5">
-            {brands.map(b => (
-              <div key={b.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-800/30 border border-slate-700/30">
-                <span className="text-sm text-slate-200">{b.name}</span>
-                <div className="flex gap-1">
-                  <button onClick={() => { setEditingBrand(b); setBrandForm({ name: b.name }); }} className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400"><Edit size={13} /></button>
-                  <button onClick={() => deleteBrand(b.id)} className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-red-400"><Trash2 size={13} /></button>
+            {brands.map(b => {
+              const brandModels = models.filter(m => m.brand_id === b.id);
+              const brandTotal = items.filter(i => brandModels.some(m => m.id === i.model_id)).length;
+              const brandAssigned = items.filter(i => brandModels.some(m => m.id === i.model_id) && i.status === "Asignado").length;
+              const brandStock = items.filter(i => brandModels.some(m => m.id === i.model_id) && i.status === "Disponible").length;
+              
+              return (
+                <div key={b.id} className="flex flex-col gap-2 p-3 rounded-xl bg-slate-800/30 border border-slate-700/30">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-200">{b.name}</span>
+                    <div className="flex gap-1">
+                      <button onClick={() => { setEditingBrand(b); setBrandForm({ name: b.name }); }} className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400"><Edit size={13} /></button>
+                      <button onClick={() => deleteBrand(b.id)} className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-red-400"><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                      <BarChart3 size={10} /> {t("total")}: <span className="text-slate-300 font-medium">{brandTotal}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                      <UserCheck size={10} /> {t("assigned")}: <span className="text-blue-400 font-medium">{brandAssigned}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                      <Package size={10} /> {t("stock")}: <span className={`${brandStock === 0 ? "text-red-400" : "text-emerald-500"} font-medium`}>{brandStock}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </Modal>
