@@ -401,9 +401,21 @@ export function AppProvider({ children }) {
   const updateTicketStatus = async (id, status) => {
     const ticket = tickets.find(t => t.id === id);
     const oldStatus = ticket?.status;
-    const { error } = await supabase.from("tickets").update({ status }).eq("id", id);
+    const updates = { status, updated_at: new Date().toISOString() };
+
+    // Performance metrics
+    if (status === "Proceso" && !ticket.responded_at) {
+      updates.responded_at = new Date().toISOString();
+    }
+    if (status === "Cerrado") {
+      updates.closed_at = new Date().toISOString();
+      updates.closed_by = session?.user?.id;
+    }
+
+    const { error } = await supabase.from("tickets").update(updates).eq("id", id);
     if (error) { showToast(error.message, "error"); return; }
-    setTickets(p => p.map(t => t.id === id ? { ...t, status } : t));
+    
+    setTickets(p => p.map(t => t.id === id ? { ...t, ...updates } : t));
     showToast(`Ticket → ${status}`);
 
     // Notificación robusta de cambio de estatus

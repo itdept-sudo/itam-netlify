@@ -1,10 +1,10 @@
-import { Boxes, UserCheck, Wrench, TicketCheck, Plus, MessageSquare, Loader2 } from "lucide-react";
+import { Boxes, UserCheck, Wrench, TicketCheck, Plus, MessageSquare, Loader2, Zap, Trophy, Clock, CheckCircle2 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { STATUSES, TICKET_STATUSES } from "../data/constants";
 import { KpiCard, MiniBar, StatusBadge } from "../components/ui";
 
 export default function Dashboard() {
-  const { items, tickets, models, users, dataLoading, dashboardStats, t } = useApp();
+  const { items, tickets, models, users, dataLoading, dashboardStats, t, lastUpdate } = useApp();
 
   if (dataLoading) return <div className="flex items-center justify-center py-32"><Loader2 size={32} className="animate-spin text-blue-400" /></div>;
 
@@ -12,18 +12,41 @@ export default function Dashboard() {
   const statusCounts = STATUSES.reduce((a, s) => ({ ...a, [s]: items.filter(i => i.status === s).length }), {});
   const ticketCounts = TICKET_STATUSES.reduce((a, s) => ({ ...a, [s]: tickets.filter(t => t.status === s).length }), {});
   
-  // For types, we use the limited items list which is fine for a "snapshot"
   const typeCounts = {};
   items.slice(0, 100).forEach(item => {
     const model = models.find(m => m.id === item.model_id);
     if (model) typeCounts[model.type] = (typeCounts[model.type] || 0) + 1;
   });
 
+  // Calculate Response SLA (Response within 24h)
+  const ticketsWithResponse = tickets.filter(t => t.responded_at || t.closed_at);
+  const ticketsMetSla = ticketsWithResponse.filter(t => {
+    const start = new Date(t.created_at).getTime();
+    const response = new Date(t.responded_at || t.closed_at).getTime();
+    return (response - start) <= 24 * 60 * 60 * 1000;
+  });
+  const slaPercent = ticketsWithResponse.length > 0 
+    ? Math.round((ticketsMetSla.length / ticketsWithResponse.length) * 100) 
+    : 100;
+
+  // IT Leaderboard (Closed tickets by user)
+  const solvers = users.filter(u => u.role === "admin" || u.role === "rrhh");
+  const leaderboard = solvers.map(u => {
+    const closedCount = tickets.filter(t => t.closed_by === u.id && t.status === "Cerrado").length;
+    return { ...u, closedCount };
+  }).sort((a, b) => b.closedCount - a.closedCount).filter(u => u.closedCount > 0);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-100 mb-1">{t("dashboard")}</h2>
-        <p className="text-sm text-slate-500">{t("generalSummary")}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-100 mb-1">{t("dashboard")}</h2>
+          <p className="text-sm text-slate-500">{t("generalSummary")}</p>
+        </div>
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400">
+          <Zap size={14} className="animate-pulse" />
+          <span className="text-xs font-bold uppercase tracking-wider">Live Sync</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -34,6 +57,30 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* New: SLA Response Chart (Gauge style using CSS) */}
+        <div className="rounded-2xl border border-slate-700/50 bg-gradient-to-br from-[#1A1F2B] to-[#151A24] p-5 flex flex-col items-center justify-center relative overflow-hidden group">
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-all"></div>
+          <h3 className="text-sm font-semibold text-slate-300 mb-6 flex items-center gap-2 self-start">
+            <Clock size={16} className="text-emerald-400" />
+            % Respuesta (SLA 24h)
+          </h3>
+          <div className="relative w-32 h-32 mb-4">
+            <svg className="w-full h-full transform -rotate-90">
+              <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-800" />
+              <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" 
+                strokeDasharray={364.4}
+                strokeDashoffset={364.4 - (364.4 * slaPercent) / 100}
+                className="text-emerald-500 transition-all duration-1000 ease-out" 
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-3xl font-black text-white">{slaPercent}%</span>
+              <span className="text-[10px] text-slate-500 uppercase font-bold">A tiempo</span>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 text-center px-4">Meta: Atender tickets en menos de 24 horas.</p>
+        </div>
+
         <div className="rounded-2xl border border-slate-700/50 bg-[#151A24] p-5">
           <h3 className="text-sm font-semibold text-slate-300 mb-4">{t("assetByStatus")}</h3>
           <MiniBar data={STATUSES.map(s => ({ label: t(s).slice(0, 4), value: statusCounts[s] }))} colors={["#10B981", "#3B82F6", "#F59E0B", "#EF4444"]} />
@@ -42,13 +89,52 @@ export default function Dashboard() {
           <h3 className="text-sm font-semibold text-slate-300 mb-4">{t("ticketByStatus")}</h3>
           <MiniBar data={TICKET_STATUSES.map(s => ({ label: t(s).slice(0, 4), value: ticketCounts[s] }))} colors={["#EF4444", "#F59E0B", "#10B981"]} />
         </div>
-        <div className="rounded-2xl border border-slate-700/50 bg-[#151A24] p-5">
-          <h3 className="text-sm font-semibold text-slate-300 mb-4">{t("byType")}</h3>
-          <MiniBar data={Object.entries(typeCounts).map(([k, v]) => ({ label: k.slice(0, 5), value: v }))} colors={["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899"]} />
-        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+        {/* New: IT Leaderboard */}
+        <div className="rounded-2xl border border-slate-700/50 bg-gradient-to-br from-[#1A1F2B] to-[#151A24] p-5 relative overflow-hidden group">
+          <div className="absolute -top-6 -right-6 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all"></div>
+          <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+            <Trophy size={16} className="text-yellow-500" />
+            Top Solvers (Personal IT)
+          </h3>
+          <div className="space-y-3">
+            {leaderboard.map((u, idx) => {
+              const initials = u.full_name ? u.full_name.split(" ").map(w => w[0]).join("").slice(0, 2) : "??";
+              return (
+                <div key={u.id} className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.05] hover:bg-white/[0.06] transition-all group/item">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold relative ${idx === 0 ? "bg-yellow-500/20 text-yellow-500" : "bg-slate-700/30 text-slate-400"}`}>
+                    {idx === 0 && <span className="absolute -top-1.5 -right-1.5 text-[10px]">👑</span>}
+                    {initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-200 font-medium truncate">{u.full_name}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-1000 ${idx === 0 ? "bg-yellow-500" : "bg-blue-500"}`} 
+                          style={{ width: `${(u.closedCount / (leaderboard[0].closedCount || 1)) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-slate-200">{u.closedCount}</p>
+                    <p className="text-[9px] text-slate-500 uppercase font-bold">Cerrados</p>
+                  </div>
+                </div>
+              );
+            })}
+            {leaderboard.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-6 text-slate-500 border-2 border-dashed border-slate-800 rounded-2xl">
+                 <CheckCircle2 size={32} className="mb-2 opacity-20" />
+                 <p className="text-xs">No hay tickets cerrados por personal de IT aún.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="rounded-2xl border border-slate-700/50 bg-[#151A24] p-5">
           <h3 className="text-sm font-semibold text-slate-300 mb-4">{t("recentTickets")}</h3>
           <div className="space-y-2">
@@ -67,25 +153,6 @@ export default function Dashboard() {
               );
             })}
             {tickets.filter(t => t.status !== "Cerrado").length === 0 && <p className="text-sm text-slate-500 text-center py-4">{t("noOpenTickets")}</p>}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-slate-700/50 bg-[#151A24] p-5">
-          <h3 className="text-sm font-semibold text-slate-300 mb-4">{t("topUsers")}</h3>
-          <div className="space-y-2">
-            {users.filter(u => items.some(i => i.user_id === u.id)).slice(0, 5).map(u => {
-              const count = items.filter(i => i.user_id === u.id).length;
-              const initials = u.full_name ? u.full_name.split(" ").map(w => w[0]).join("").slice(0, 2) : "??";
-              return (
-                <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/30 border border-slate-700/30">
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">{initials}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-slate-200 truncate">{u.full_name}</p>
-                    <p className="text-xs text-slate-500">{u.department || u.email}</p>
-                  </div>
-                  <span className="text-sm font-bold text-slate-300">{count}</span>
-                </div>
-              );
-            })}
           </div>
         </div>
       </div>
