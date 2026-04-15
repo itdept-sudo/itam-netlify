@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Search, Edit, Shield, ShieldCheck, UserX, UserCheck as UserCheckIcon,
-  Users, Save, ChevronRight, Plus, Building, Trash2, KeyRound, AlertTriangle
+  Users, Save, ChevronRight, Plus, Building, Trash2, KeyRound, AlertTriangle, Upload
 } from "lucide-react";
+import { supabase } from "../lib/supabase";
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 import { Badge, EmptyState, Modal, Input, Select, Btn } from "../components/ui";
@@ -33,6 +34,8 @@ export default function UsersView() {
   const [elevateModal, setElevateModal] = useState(false);
   const [elevateForm, setElevateForm] = useState({ email: "", role: "user" });
   const [elevating, setElevating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const handleCreateUser = async () => {
     if (!createForm.firstName || !createForm.lastName || !createForm.email || !createForm.password) {
@@ -213,6 +216,86 @@ export default function UsersView() {
     return <span className="text-sm font-bold">{initials}</span>;
   };
 
+  const handleCSVImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target.result;
+        const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+        
+        // Skip header if it contains known column names
+        const startIndex = (lines[0].toLowerCase().includes("name") || lines[0].toLowerCase().includes("nombre")) ? 1 : 0;
+        const dataLines = lines.slice(startIndex);
+
+        if (dataLines.length === 0) throw new Error("Archivo vacío");
+
+        const newProfiles = [];
+        const departments = new Set();
+
+        dataLines.forEach(line => {
+          // Basic CSV Parsing (comma or semicolon)
+          const parts = line.split(/[;,]/).map(p => p.trim());
+          if (parts.length >= 4) {
+            const first_name = parts[0];
+            const last_name_paternal = parts[1];
+            const last_name_maternal = parts[2];
+            const employee_number = parts[3];
+            const department = parts[4] || "";
+            const card_number = parts[5] || "";
+
+            if (first_name && employee_number) {
+              const full_name = `${first_name} ${last_name_paternal} ${last_name_maternal}`.replace(/\s+/g, ' ').trim();
+              newProfiles.push({
+                full_name,
+                first_name,
+                last_name_paternal,
+                last_name_maternal,
+                employee_number,
+                department,
+                card_number,
+                role: 'produccion',
+                is_active: true
+              });
+              if (department) departments.add(department);
+            }
+          }
+        });
+
+        if (newProfiles.length === 0) throw new Error("No se encontraron datos válidos. El formato debe ser: Nombre, Apellido P, Apellido M, No. Empleado...");
+
+        // 1. Ensure Departments exist as Areas
+        if (departments.size > 0) {
+          const deptArray = Array.from(departments).map(name => ({ name }));
+          await supabase.from("areas").upsert(deptArray, { onConflict: "name", ignoreDuplicates: true });
+        }
+
+        // 2. Batch Insert Profiles
+        const { data, error } = await supabase
+          .from("profiles")
+          .upsert(newProfiles, { onConflict: "employee_number", ignoreDuplicates: true })
+          .select();
+
+        if (error) throw error;
+
+        const importedCount = data?.length || 0;
+        const skippedCount = newProfiles.length - importedCount;
+        
+        showToast(`Importación completa: ${importedCount} nuevos, ${skippedCount} omitidos.`, "success");
+      } catch (err) {
+        console.error("CSV Import Error:", err);
+        showToast("Error importando CSV: " + err.message, "error");
+      } finally {
+        setImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -223,6 +306,20 @@ export default function UsersView() {
         <div className="flex gap-2">
           {myProfile?.role === "admin" && (
             <>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept=".csv" 
+                onChange={handleCSVImport} 
+              />
+              <Btn 
+                variant="secondary" 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+              >
+                {importing ? "..." : <Upload size={15} />} {t("import")}
+              </Btn>
               <Btn variant="secondary" onClick={() => { setEditingArea(null); setAreaForm({ name: "" }); setAreaModal(true); }}><Building size={15} /> {t("areas")}</Btn>
               <Btn onClick={() => setCreateModal(true)}><Plus size={15} /> {t("newUser")}</Btn>
             </>
