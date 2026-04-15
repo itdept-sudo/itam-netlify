@@ -189,7 +189,7 @@ export default function TicketsView() {
       if (commentPhotos.length > 0) {
         uploadedUrls = await Promise.all(commentPhotos.map(p => uploadTicketPhoto(p.file)));
       }
-      const data = await addTicketComment(ticketId, comment.trim(), true, user.id, uploadedUrls);
+      const data = await addTicketComment(ticketId, comment.trim(), true, profile.id, uploadedUrls);
       if (data && detailTicket?.id === ticketId) {
         setDetailTicket(prev => prev ? { ...prev, comments: [...(prev.comments || []), data] } : prev);
         setPagedTickets(p => p.map(t => t.id === ticketId ? { 

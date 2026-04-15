@@ -90,7 +90,7 @@ export default function UserPortal() {
       await createTicket({
         title: form.title,
         description: form.description,
-        user_id: user.id,
+        user_id: profile.id,
         item_id: form.item_id || null,
         status: "Abierto",
         images: uploadedUrls
@@ -149,7 +149,7 @@ export default function UserPortal() {
       if (commentPhotos.length > 0) {
         uploadedUrls = await Promise.all(commentPhotos.map(p => uploadTicketPhoto(p.file)));
       }
-      const data = await addTicketComment(ticketId, comment.trim(), false, user.id, uploadedUrls);
+      const data = await addTicketComment(ticketId, comment.trim(), false, profile.id, uploadedUrls);
       if (data && detailTicket?.id === ticketId) {
         setDetailTicket(prev => prev ? { ...prev, comments: [...(prev.comments || []), data] } : prev);
       }
