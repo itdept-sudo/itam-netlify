@@ -44,7 +44,7 @@ async function uploadTicketPhoto(file) {
 
 export default function TicketsView() {
   const { models, brands, users, items, createTicket, updateTicketStatus, addTicketComment, t } = useApp();
-  const { user, isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
   const [detailTicket, setDetailTicket] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
