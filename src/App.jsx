@@ -16,6 +16,7 @@ import UsersView from "./pages/UsersManagement";
 import UserPortal from "./pages/UserPortal";
 import RRHHPortal from "./pages/RRHHPortal";
 import AccessControl from "./pages/AccessControl";
+import ApproveAccess from "./pages/ApproveAccess";
 
 const adminPages = {
   dashboard: Dashboard,
