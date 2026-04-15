@@ -131,73 +131,106 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!session) return;
     
-    let timeout;
-    const debouncedFetch = () => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => fetchAll({ showLoader: false }), 1500);
-    };
-
-    const handleNewTicket = async (payload) => {
-      if (!isAdmin) return; // For now only admins get "new ticket" alerts
-      
-      const newT = payload.new;
-      // Evitar duplicados si ya está en la lista (evita ráfagas)
-      setUnreadNotifications(prev => {
-        if (prev.some(n => n.id === newT.id)) return prev;
-        
-        const u = users.find(x => x.id === newT.user_id);
-        const notification = {
-          id: newT.id,
-          ticket_id: newT.id,
-          title: newT.title,
-          ticket_number: newT.ticket_number,
-          user_name: u?.full_name || "Usuario",
-          created_at: newT.created_at,
-          type: "new_ticket"
-        };
-        return [notification, ...prev].slice(0, 10); // Mantener máximo 10
-      });
-      debouncedFetch();
+    let statsTimeout;
+    const debouncedStats = () => {
+      clearTimeout(statsTimeout);
+      statsTimeout = setTimeout(fetchDashboardStats, 2000);
     };
 
     const ch = supabase.channel("itam-rt")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "tickets" }, handleNewTicket)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tickets" }, async (payload) => {
-        if (!isAdmin && payload.new.user_id === session?.user?.id && payload.new.status !== payload.old?.status) {
-          setUnreadNotifications(p => {
-            if (p.some(n => n.id === payload.new.id + "_status")) return p;
-            return [{ id: payload.new.id + "_status", ticket_id: payload.new.id, title: "Cambio de Estatus: " + payload.new.status, ticket_number: payload.new.ticket_number, created_at: new Date().toISOString(), type: "status" }, ...p].slice(0, 10);
+      // ── TICKETS ──
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "tickets" }, async (payload) => {
+        const newT = payload.new;
+        // Notificación para Admins
+        if (isAdmin) {
+          const u = users.find(x => x.id === newT.user_id);
+          setUnreadNotifications(prev => {
+            if (prev.some(n => n.id === newT.id)) return prev;
+            return [{
+              id: newT.id, ticket_id: newT.id, title: "Nuevo Ticket", ticket_number: newT.ticket_number,
+              user_name: u?.full_name || "Usuario", created_at: newT.created_at, type: "new_ticket"
+            }, ...prev].slice(0, 10);
           });
         }
-        debouncedFetch();
+        // Actualización atómica de la lista
+        setTickets(prev => [newT, ...prev].slice(0, 100));
+        debouncedStats();
       })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "tickets" }, debouncedFetch)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tickets" }, async (payload) => {
+        const newT = payload.new;
+        // Notificación de cambio de estatus para el usuario
+        if (!isAdmin && newT.user_id === session?.user?.id && newT.status !== payload.old?.status) {
+          setUnreadNotifications(p => {
+            const id = newT.id + "_status";
+            if (p.some(n => n.id === id)) return p;
+            return [{
+              id, ticket_id: newT.id, title: "Estatus: " + newT.status,
+              ticket_number: newT.ticket_number, type: "status", created_at: new Date().toISOString()
+            }, ...p].slice(0, 10);
+          });
+        }
+        setTickets(prev => prev.map(t => t.id === newT.id ? { ...t, ...newT } : t));
+        debouncedStats();
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "tickets" }, (payload) => {
+        setTickets(prev => prev.filter(t => t.id !== payload.old.id));
+        debouncedStats();
+      })
+
+      // ── COMMENTS (For notifications) ──
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "ticket_comments" }, async (payload) => {
         const newC = payload.new;
-        const { data: ticket } = await supabase.from("tickets").select("*").eq("id", newC.ticket_id).single();
+        // Buscamos el ticket para la notificación
+        const { data: ticket } = await supabase.from("tickets").select("id, title, ticket_number, user_id").eq("id", newC.ticket_id).single();
         if (ticket) {
-          if (!isAdmin && newC.is_staff && ticket.user_id === session?.user?.id) {
-             setUnreadNotifications(p => [{
-                id: newC.id, ticket_id: ticket.id, title: "IT respondió a tu ticket", ticket_number: ticket.ticket_number, type: "new_comment", created_at: newC.created_at
-             }, ...p].slice(0, 10));
-          } else if (isAdmin && !newC.is_staff) {
-             setUnreadNotifications(p => [{
-                id: newC.id, ticket_id: ticket.id, title: "Nuevo comentario del usuario", ticket_number: ticket.ticket_number, type: "new_comment", created_at: newC.created_at
-             }, ...p].slice(0, 10));
+          const isForMe = (!isAdmin && newC.is_staff && ticket.user_id === session?.user?.id) ||
+                          (isAdmin && !newC.is_staff);
+          if (isForMe) {
+            setUnreadNotifications(p => [{
+              id: newC.id, ticket_id: ticket.id, 
+              title: isAdmin ? "Nuevo comentario" : "IT respondió",
+              ticket_number: ticket.ticket_number, type: "new_comment", created_at: newC.created_at
+            }, ...p].slice(0, 10));
           }
         }
-        debouncedFetch();
+        // Forzamos actualización ligera de tickets para refrescar el conteo de comentarios
+        setTickets(prev => prev.map(t => t.id === newC.ticket_id ? { ...t, updated_at: new Date().toISOString() } : t));
       })
+
+      // ── INVENTARIO (Items) ──
+      .on("postgres_changes", { event: "*", schema: "public", table: "items" }, (payload) => {
+        if (payload.eventType === "INSERT") {
+          setItems(prev => [payload.new, ...prev].slice(0, 300));
+        } else if (payload.eventType === "UPDATE") {
+          setItems(prev => prev.map(i => i.id === payload.new.id ? payload.new : i));
+        } else if (payload.eventType === "DELETE") {
+          setItems(prev => prev.filter(i => i.id !== payload.old.id));
+        }
+        debouncedStats();
+      })
+
+      // ── USUARIOS/PROFILES ──
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, (payload) => {
+        if (payload.eventType === "INSERT") {
+          setUsers(prev => [...prev, payload.new].sort((a,b) => (a.full_name||'').localeCompare(b.full_name||'')));
+        } else if (payload.eventType === "UPDATE") {
+          setUsers(prev => prev.map(u => u.id === payload.new.id ? payload.new : u));
+        } else if (payload.eventType === "DELETE") {
+          setUsers(prev => prev.filter(u => u.id !== payload.old.id));
+        }
+      })
+
+      // ── METADATA ──
       .on("postgres_changes", { event: "*", schema: "public", table: "areas" }, syncMetadata)
       .on("postgres_changes", { event: "*", schema: "public", table: "brands" }, syncMetadata)
       .on("postgres_changes", { event: "*", schema: "public", table: "asset_types" }, syncMetadata)
       .subscribe();
 
     return () => { 
-      if (timeout) clearTimeout(timeout);
+      if (statsTimeout) clearTimeout(statsTimeout);
       supabase.removeChannel(ch); 
     };
-  }, [session, fetchAll, isAdmin, users]);
+  }, [session, isAdmin, users.length, syncMetadata, fetchDashboardStats]);
 
   // ── Brands CRUD ──
   const createBrand = async (name) => {
