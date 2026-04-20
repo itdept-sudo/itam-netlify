@@ -298,7 +298,18 @@ export default function TicketsView() {
       {/* New Ticket */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={t("newTicket")}>
         <div className="space-y-4">
-          <Select label={t("reportedBy")} options={[{ value: "", label: t("select") + "..." }, ...users.filter(u => u.is_active !== false).map(u => ({ value: u.id, label: u.full_name }))]} value={form.user_id} onChange={e => setForm(p => ({ ...p, user_id: e.target.value, item_id: "" }))} />
+          <SearchableSelect 
+            label={t("reportedBy")} 
+            placeholder={t("select") + "..."}
+            options={users.filter(u => u.is_active !== false).map(u => ({ 
+              value: u.id, 
+              label: u.full_name,
+              sublabel: u.employee_number ? `No. Emp: ${u.employee_number}` : u.department || "",
+              image: u.avatar_url || null 
+            }))} 
+            value={form.user_id} 
+            onChange={e => setForm(p => ({ ...p, user_id: e.target.value, item_id: "" }))} 
+          />
           <SearchableSelect 
             label={t("optionalAsset")} 
             placeholder={t("noneGeneral")}
