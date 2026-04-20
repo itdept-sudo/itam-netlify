@@ -93,7 +93,7 @@ export function AppProvider({ children }) {
       ];
       
       // Intentar cargar configs del sistema sin fallar si no existe (por migración pendiente)
-      const settingsPromise = supabase.from("system_settings").select("*").catch(() => null);
+      const settingsPromise = supabase.from("system_settings").select("*");
       promises.push(settingsPromise);
 
       if (forceMetadata || !brands.length) {
