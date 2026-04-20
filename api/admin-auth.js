@@ -74,17 +74,36 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "Dominio no autorizado." });
       }
 
-      // Generate a secure temporary password
+      // STEP 1: Set the email on the production profile FIRST
+      // This is critical: the handle_new_user trigger searches profiles by email.
+      // If we set it now, the trigger will find this profile and do an UPDATE (link auth_id)
+      // instead of trying to INSERT a new one (which causes the DB error).
+      const { error: preUpdateErr } = await supabase
+        .from("profiles")
+        .update({ email })
+        .eq("id", profileId);
+
+      if (preUpdateErr) {
+        console.error("[ADMIN-AUTH] Error pre-setting email on profile:", preUpdateErr);
+        throw new Error("No se pudo asignar el correo al perfil: " + preUpdateErr.message);
+      }
+
+      console.log(`[ADMIN-AUTH] Email ${email} pre-set on profile ${profileId}`);
+
+      // STEP 2: Create or reuse the Auth account
       const tempPassword = Math.random().toString(36).slice(-10) + "A1!";
       let authId;
 
-      // Check if the email already exists in auth.users
-      const { data: existingUsers } = await supabase.auth.admin.listUsers();
-      const existingAuth = existingUsers?.users?.find(u => u.email === email);
+      // Check if the email already exists in auth.users (with pagination)
+      const { data: lookupData } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000
+      });
+      const existingAuth = lookupData?.users?.find(u => u.email === email);
 
       if (existingAuth) {
-        // Reuse the existing auth account — just update the password
-        console.log(`[ADMIN-AUTH] Email ${email} already exists in Auth, reusing ID: ${existingAuth.id}`);
+        // Reuse the existing auth account
+        console.log(`[ADMIN-AUTH] Email ${email} already in Auth, reusing ID: ${existingAuth.id}`);
         const { error: updateErr } = await supabase.auth.admin.updateUserById(existingAuth.id, {
           password: tempPassword,
           email_confirm: true
@@ -92,7 +111,7 @@ export default async function handler(req, res) {
         if (updateErr) throw updateErr;
         authId = existingAuth.id;
       } else {
-        // Create a new Auth User
+        // Create new Auth User — the trigger will find the profile by email and link it
         const { data: authData, error: authError } = await supabase.auth.admin.createUser({
           email,
           password: tempPassword,
@@ -102,18 +121,18 @@ export default async function handler(req, res) {
         authId = authData.user.id;
       }
 
-      // Update existing profile with the auth link
-      const { error: profileError } = await supabase
+      // STEP 3: Ensure profile has auth_id and updated role
+      const { error: finalUpdateErr } = await supabase
         .from("profiles")
         .update({
-          email,
           role,
           auth_id: authId
         })
         .eq("id", profileId);
 
-      if (profileError) throw profileError;
+      if (finalUpdateErr) throw finalUpdateErr;
 
+      console.log(`[ADMIN-AUTH] Elevation complete for ${email}, authId: ${authId}`);
       return res.status(200).json({ success: true, tempPassword });
     }
 
