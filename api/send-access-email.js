@@ -42,7 +42,7 @@ export default async function handler(req, res) {
   try {
     const {
       employeeName, employeeNumber, cardNumber, department,
-      requestType, requestedDoors, token,
+      requestType, requestedDoors, itRequirements, token,
       puestoEncargado, requesterName
     } = req.body;
 
@@ -66,6 +66,10 @@ export default async function handler(req, res) {
       ? requestedDoors.map(d => `<li style="margin-bottom:4px;">${d}</li>`).join("")
       : "N/A";
 
+    const itReqHtml = itRequirements && itRequirements.length > 0
+      ? `<p><strong>Requerimientos IT:</strong> <ul>${itRequirements.map(req => `<li style="margin-bottom:4px;">${req}</li>`).join("")}</ul></p>`
+      : "";
+
     const subject = `🚪 Solicitud de ${requestType} de Acceso: ${employeeName}`;
     const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0B0E14;color:#E2E8F0;padding:40px 20px;">
 <div style="max-width:540px;margin:0 auto;background:#151A24;border-radius:16px;border:1px solid #1E2533;overflow:hidden;padding:24px;">
@@ -76,7 +80,8 @@ export default async function handler(req, res) {
     <p>Empleado: ${employeeName} (#${employeeNumber})</p>
     <p>Tarjeta: ${cardNumber || "N/A"}</p>
     <p>Departamento: ${department}</p>
-    <p>Puertas: <ul>${doorsListHtml}</ul></p>
+    <p><strong>Puertas:</strong> <ul>${doorsListHtml}</ul></p>
+    ${itReqHtml}
   </div>
   <div style="display:flex;gap:16px;margin-top:24px;">
     <a href="${approveUrl}" style="background:#10B981;color:white;padding:12px;border-radius:8px;text-decoration:none;">Autorizar</a>

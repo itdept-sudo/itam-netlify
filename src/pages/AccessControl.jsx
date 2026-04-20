@@ -14,6 +14,12 @@ const DOORS = [
   "TSC Offices"
 ];
 
+const IT_REQUIREMENTS = [
+  "Computadora/Laptop",
+  "Correo Electronico",
+  "Pantalla Adicional"
+];
+
 export default function AccessControl() {
   const { profile } = useAuth();
   const { showToast } = useApp();
@@ -34,6 +40,7 @@ export default function AccessControl() {
   const [altaDepartment, setAltaDepartment] = useState("");
   const [altaPuesto, setAltaPuesto] = useState("");
   const [altaSelectedDoors, setAltaSelectedDoors] = useState(["Entrada Personal"]);
+  const [altaSelectedIT, setAltaSelectedIT] = useState([]);
 
   const handleNumberInput = (setter) => (e) => {
     const val = e.target.value;
@@ -222,6 +229,7 @@ export default function AccessControl() {
           user_id: user.id,
           request_type: "Alta",
           requested_doors: altaSelectedDoors,
+          it_requirements: altaSelectedIT,
           requested_by: profile.id,
           puesto_encargado: altaPuesto,
           status: "Pendiente",
@@ -245,6 +253,7 @@ export default function AccessControl() {
           department: user.department,
           requestType: "Alta",
           requestedDoors: altaSelectedDoors,
+          itRequirements: altaSelectedIT,
           token: requestToken,
           puestoEncargado: altaPuesto,
           requesterName: profile.full_name
@@ -262,6 +271,7 @@ export default function AccessControl() {
       setAltaDepartment("");
       setAltaPuesto("");
       setAltaSelectedDoors(["Entrada Personal"]);
+      setAltaSelectedIT([]);
 
     } catch (err) {
       console.error(err);
@@ -409,6 +419,14 @@ export default function AccessControl() {
     }
   };
 
+  const toggleAltaIT = (req) => {
+    if (altaSelectedIT.includes(req)) {
+      setAltaSelectedIT(prev => prev.filter(r => r !== req));
+    } else {
+      setAltaSelectedIT(prev => [...prev, req]);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div>
@@ -510,6 +528,25 @@ export default function AccessControl() {
                       }`}
                     >
                       {door}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5 md:col-span-2 mt-2">
+                <label className="text-sm font-medium text-slate-300 block mb-2">Requerimiento de IT (Opcional)</label>
+                <div className="flex flex-wrap gap-2">
+                  {IT_REQUIREMENTS.map(req => (
+                    <button
+                      key={req}
+                      type="button"
+                      onClick={() => toggleAltaIT(req)}
+                      className={`px-4 py-2 rounded-xl text-sm transition-colors border ${
+                        altaSelectedIT.includes(req)
+                          ? "bg-purple-600 text-white border-purple-500 shadow-sm shadow-purple-500/20"
+                          : "bg-[#151A24] text-slate-300 border-slate-700 hover:border-slate-500"
+                      }`}
+                    >
+                      {req}
                     </button>
                   ))}
                 </div>

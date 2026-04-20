@@ -66,6 +66,10 @@ export default async function handler(req, res) {
         ? request.requested_doors.join(", ") 
         : "N/A";
         
+      const itReqStr = request.it_requirements && request.it_requirements.length > 0
+        ? "\\nRequerimientos IT: " + request.it_requirements.join(", ")
+        : "";
+        
       const description = `
 SOLICITUD DE ACCESO AUTORIZADA (Unificada)
 ==========================================
@@ -73,7 +77,7 @@ Tipo: ${request.request_type}
 Empleado: ${u?.full_name || u?.first_name || 'N/A'} ${u?.last_name_paternal || ''} (#${u?.employee_number || 'N/A'})
 Departamento: ${u?.department || 'N/A'}
 Puesto Encargado: ${request.puesto_encargado || "N/A"}
-Puertas: ${doorsStr}
+Puertas: ${doorsStr}${itReqStr}
 
 Nota: Este ticket fue generado automáticamente tras la aprobación vía correo electrónico por ${request.requester?.full_name || 'Sistema'}.
       `.trim();
