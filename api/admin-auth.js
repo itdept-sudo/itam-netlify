@@ -76,23 +76,39 @@ export default async function handler(req, res) {
 
       // Generate a secure temporary password
       const tempPassword = Math.random().toString(36).slice(-10) + "A1!";
+      let authId;
 
-      // Create Auth User
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email,
-        password: tempPassword,
-        email_confirm: true,
-      });
+      // Check if the email already exists in auth.users
+      const { data: existingUsers } = await supabase.auth.admin.listUsers();
+      const existingAuth = existingUsers?.users?.find(u => u.email === email);
 
-      if (authError) throw authError;
+      if (existingAuth) {
+        // Reuse the existing auth account — just update the password
+        console.log(`[ADMIN-AUTH] Email ${email} already exists in Auth, reusing ID: ${existingAuth.id}`);
+        const { error: updateErr } = await supabase.auth.admin.updateUserById(existingAuth.id, {
+          password: tempPassword,
+          email_confirm: true
+        });
+        if (updateErr) throw updateErr;
+        authId = existingAuth.id;
+      } else {
+        // Create a new Auth User
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email,
+          password: tempPassword,
+          email_confirm: true,
+        });
+        if (authError) throw authError;
+        authId = authData.user.id;
+      }
 
-      // Update existing profile with the new auth link
+      // Update existing profile with the auth link
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
           email,
           role,
-          auth_id: authData.user.id // Linked via auth_id to preserve original PK id
+          auth_id: authId
         })
         .eq("id", profileId);
 
