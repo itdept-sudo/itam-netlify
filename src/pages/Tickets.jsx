@@ -133,7 +133,75 @@ export default function TicketsView() {
       .select("*")
       .eq("ticket_id", ticket.id)
       .order("created_at");
-    setDetailTicket(prev => prev ? { ...prev, comments: comments || [] } : prev);
+      
+    let maintenanceItems = [];
+    if (ticket.ticket_type === "maintenance") {
+      const { data: mtItems } = await supabase
+        .from("ticket_maintenance_items")
+        .select("*")
+        .eq("ticket_id", ticket.id)
+        .order("created_at");
+      maintenanceItems = mtItems || [];
+    }
+
+    setDetailTicket(prev => prev ? { ...prev, comments: comments || [], maintenanceItems } : prev);
+  };
+
+  const toggleMaintenanceItem = async (mItem) => {
+    const newVal = !mItem.is_completed;
+    const { error } = await supabase.from("ticket_maintenance_items").update({ is_completed: newVal }).eq("id", mItem.id);
+    if (!error) {
+      if (newVal) {
+        await supabase.from("items").update({ last_maintenance_date: new Date().toISOString() }).eq("id", mItem.item_id);
+      }
+      setDetailTicket(p => ({
+        ...p,
+        maintenanceItems: p.maintenanceItems.map(x => x.id === mItem.id ? { ...x, is_completed: newVal } : x)
+      }));
+    } else {
+      alert("Error actualizando checklist");
+    }
+  };
+
+  const updateMaintenanceNote = async (mItemId, note) => {
+    setDetailTicket(p => ({
+      ...p,
+      maintenanceItems: p.maintenanceItems.map(x => x.id === mItemId ? { ...x, notes: note } : x)
+    }));
+  };
+
+  const saveMaintenanceNote = async (mItemId) => {
+    const item = detailTicket.maintenanceItems.find(x => x.id === mItemId);
+    if (item) {
+      await supabase.from("ticket_maintenance_items").update({ notes: item.notes }).eq("id", mItemId);
+    }
+  };
+
+  const updateItemStatusFromMaintenance = async (itemId, newStatus) => {
+    const { error } = await supabase.from("items").update({ status: newStatus }).eq("id", itemId);
+    if (error) alert("Error cambiando estatus del equipo: " + error.message);
+  };
+
+  const uploadMaintenanceImages = async (mItemId, e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      const uploadedUrls = await Promise.all(files.map(f => uploadTicketPhoto(f)));
+      const mItem = detailTicket.maintenanceItems.find(x => x.id === mItemId);
+      const newImages = [...(mItem.images || []), ...uploadedUrls];
+      
+      await supabase.from("ticket_maintenance_items").update({ images: newImages }).eq("id", mItemId);
+      
+      setDetailTicket(p => ({
+        ...p,
+        maintenanceItems: p.maintenanceItems.map(x => x.id === mItemId ? { ...x, images: newImages } : x)
+      }));
+    } catch (err) {
+      alert("Error adjuntando imagen de mantenimiento");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const save = async () => {
@@ -409,6 +477,83 @@ export default function TicketsView() {
                   )}
                 </div>
               <div className="flex gap-2">{TICKET_STATUSES.map(s => <Btn key={s} variant={detailTicket.status === s ? "primary" : "secondary"} size="sm" onClick={() => handleStatus(detailTicket.id, s)}>{t(s)}</Btn>)}</div>
+              
+              {detailTicket.ticket_type === "maintenance" && detailTicket.maintenanceItems && detailTicket.maintenanceItems.length > 0 && (
+                <div className="pt-4 border-t border-slate-700/30">
+                  <h5 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    Checklist de Mantenimiento Previsto
+                  </h5>
+                  <div className="space-y-4">
+                    {detailTicket.maintenanceItems.map(mItem => {
+                      const mItmObj = items.find(i => i.id === mItem.item_id);
+                      if (!mItmObj) return null;
+                      const mMod = models.find(m => m.id === mItmObj.model_id);
+                      const mBrand = mMod ? brands.find(b => b.id === mMod.brand_id) : null;
+                      
+                      return (
+                        <div key={mItem.id} className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/50">
+                          <div className="flex flex-col sm:flex-row gap-4 justify-between sm:items-center border-b border-slate-700/50 pb-3 mb-3">
+                            <label className="flex items-center gap-3 cursor-pointer group">
+                              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${mItem.is_completed ? "bg-emerald-500 border-emerald-500" : "bg-transparent border-slate-500 group-hover:border-emerald-500"}`}>
+                                {mItem.is_completed && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
+                              </div>
+                              <input type="checkbox" className="hidden" checked={!!mItem.is_completed} onChange={() => toggleMaintenanceItem(mItem)} />
+                              <div>
+                                <p className={`text-sm font-medium transition-colors ${mItem.is_completed ? "text-slate-400 line-through" : "text-slate-200"}`}>
+                                  {mBrand?.name} {mMod?.name}
+                                </p>
+                                <p className="text-xs text-slate-500">S/N: {mItmObj.serial}</p>
+                              </div>
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-400 shrink-0">Estatus Físico:</span>
+                              <select 
+                                value={mItmObj.status}
+                                onChange={(e) => updateItemStatusFromMaintenance(mItmObj.id, e.target.value)}
+                                className="px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs text-slate-200 outline-none"
+                              >
+                                <option value="Disponible">Disponible</option>
+                                <option value="Asignado">Asignado</option>
+                                <option value="Mantenimiento">Mantenimiento</option>
+                                <option value="Baja">Baja</option>
+                              </select>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <div>
+                              <textarea
+                                value={mItem.notes || ""}
+                                onChange={(e) => updateMaintenanceNote(mItem.id, e.target.value)}
+                                onBlur={() => saveMaintenanceNote(mItem.id)}
+                                placeholder="Añadir notas técnicas (ej. Se limpiaron ventiladores, requiere pasta térmica...)"
+                                className="w-full h-16 px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded-lg text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-purple-500/50 resize-none"
+                              />
+                            </div>
+                            
+                            <div className="flex gap-3 flex-wrap">
+                              {(mItem.images || []).map((imgUrl, i) => (
+                                <a key={i} href={imgUrl} target="_blank" rel="noreferrer" className="block w-14 h-14 rounded-lg border border-slate-700/50 hover:border-purple-500/50 overflow-hidden">
+                                  <img src={imgUrl} alt="Evidencia" className="w-full h-full object-cover" />
+                                </a>
+                              ))}
+                              
+                              <label className="w-14 h-14 rounded-lg border border-dashed border-slate-700/50 flex flex-col items-center justify-center text-slate-500 hover:text-purple-400 hover:border-purple-500/50 cursor-pointer transition-colors bg-slate-900/30">
+                                <Plus size={16} />
+                                <span className="text-[9px] mt-1">Someter</span>
+                                <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => uploadMaintenanceImages(mItem.id, e)} />
+                              </label>
+                            </div>
+                          </div>
+
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <h5 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">{t("conversation")} ({detailTicket.comments?.length || 0})</h5>
                 <div className="space-y-3 max-h-60 overflow-y-auto mb-4">

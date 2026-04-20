@@ -1,6 +1,6 @@
 import {
   Monitor, LayoutDashboard, Boxes, Cpu, UserCheck, Users,
-  Link2, TicketCheck, ChevronRight, ChevronDown, LogOut, Inbox, Languages, Search, Key
+  Link2, TicketCheck, ChevronRight, ChevronDown, LogOut, Inbox, Languages, Search, Key, Wrench
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useApp } from "../context/AppContext";
@@ -14,6 +14,7 @@ export function getNavItems(isAdmin, isRRHH, t) {
     { id: "relations", label: t("relations"), icon: Link2 },
     { id: "access", label: t("accessControl"), icon: Key },
     { id: "tickets", label: t("helpDesk"), icon: TicketCheck },
+    { id: "maintenance", label: "Mantenimiento", icon: Wrench },
     { id: "users", label: t("users"), icon: Users },
   ];
 

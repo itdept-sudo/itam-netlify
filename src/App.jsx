@@ -17,6 +17,7 @@ import UserPortal from "./pages/UserPortal";
 import RRHHPortal from "./pages/RRHHPortal";
 import AccessControl from "./pages/AccessControl";
 import ApproveAccess from "./pages/ApproveAccess";
+import MaintenanceReport from "./pages/MaintenanceReport";
 
 const adminPages = {
   dashboard: Dashboard,
@@ -25,6 +26,7 @@ const adminPages = {
   assignments: AssignmentsView,
   relations: RelationsView,
   tickets: TicketsView,
+  maintenance: MaintenanceReport,
   users: UsersView,
   access: AccessControl,
 };

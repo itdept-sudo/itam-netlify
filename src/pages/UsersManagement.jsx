@@ -9,7 +9,7 @@ import { useAuth } from "../context/AuthContext";
 import { Badge, EmptyState, Modal, Input, Select, Btn } from "../components/ui";
 
 export default function UsersView() {
-  const { users, items, models, brands, tickets, areas, createArea, updateArea, deleteArea, updateUserProfile, toggleUserActive, deleteUserProfile, showToast, t } = useApp();
+  const { users, items, models, brands, tickets, areas, createArea, updateArea, deleteArea, updateUserProfile, toggleUserActive, deleteUserProfile, showToast, t, systemSettings, updateSystemSetting } = useApp();
   const { profile: myProfile } = useAuth();
   const [search, setSearch] = useState("");
   const [editModal, setEditModal] = useState(false);
@@ -331,32 +331,53 @@ export default function UsersView() {
         <button onClick={() => setActiveTab("all")} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === "all" ? "bg-slate-700 text-white" : "text-slate-500 hover:text-slate-300"}`}>Todos</button>
         <button onClick={() => setActiveTab("system")} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === "system" ? "bg-blue-600/20 text-blue-400" : "text-slate-500 hover:text-slate-300"}`}>Acceso Plataforma</button>
         <button onClick={() => setActiveTab("production")} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === "production" ? "bg-emerald-600/20 text-emerald-400" : "text-slate-500 hover:text-slate-300"}`}>Solo Producción</button>
+        {myProfile?.role === "admin" && (
+          <button onClick={() => setActiveTab("settings")} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === "settings" ? "bg-purple-600/20 text-purple-400" : "text-slate-500 hover:text-slate-300"}`}>Configuración del Sistema</button>
+        )}
       </div>
 
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("searchUsersPlaceholder")} className="w-full pl-10 pr-4 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50" />
-      </div>
+      {activeTab === "settings" ? (
+        <div className="p-6 bg-[#151A24] border border-slate-700/50 rounded-2xl animate-fade-in space-y-6">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-100">Mantenimiento Preventivo</h3>
+            <p className="text-sm text-slate-500">Configura cada cuántos días se revisará el inventario para generar tickets automáticos.</p>
+          </div>
+          <div className="max-w-xs space-y-3">
+            <Input 
+              label="Días para Mantenimiento" 
+              type="number" 
+              value={systemSettings?.maintenance_interval_days || 30} 
+              onChange={e => updateSystemSetting("maintenance_interval_days", parseInt(e.target.value) || 30)} 
+            />
+            <p className="text-xs text-slate-500">Valor por defecto: 30</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("searchUsersPlaceholder")} className="w-full pl-10 pr-4 py-2.5 bg-slate-800/40 border border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50" />
+          </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-xl border border-slate-700/50 bg-[#151A24] p-4 text-center">
-          <p className="text-2xl font-bold text-slate-100">{users.filter(u => u.role === "admin").length}</p>
-          <p className="text-xs text-slate-500">{t("adminsStat")}</p>
-        </div>
-        <div className="rounded-xl border border-slate-700/50 bg-[#151A24] p-4 text-center">
-          <p className="text-2xl font-bold text-slate-100">{users.filter(u => u.role === "user").length}</p>
-          <p className="text-xs text-slate-500">{t("standardUsersStat")}</p>
-        </div>
-        <div className="rounded-xl border border-slate-700/50 bg-[#151A24] p-4 text-center">
-          <p className="text-2xl font-bold text-slate-100">{users.filter(u => u.is_active === false).length}</p>
-          <p className="text-xs text-slate-500">{t("disabledStat")}</p>
-        </div>
-      </div>
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="rounded-xl border border-slate-700/50 bg-[#151A24] p-4 text-center">
+              <p className="text-2xl font-bold text-slate-100">{users.filter(u => u.role === "admin").length}</p>
+              <p className="text-xs text-slate-500">{t("adminsStat")}</p>
+            </div>
+            <div className="rounded-xl border border-slate-700/50 bg-[#151A24] p-4 text-center">
+              <p className="text-2xl font-bold text-slate-100">{users.filter(u => u.role === "user").length}</p>
+              <p className="text-xs text-slate-500">{t("standardUsersStat")}</p>
+            </div>
+            <div className="rounded-xl border border-slate-700/50 bg-[#151A24] p-4 text-center">
+              <p className="text-2xl font-bold text-slate-100">{users.filter(u => u.is_active === false).length}</p>
+              <p className="text-xs text-slate-500">{t("disabledStat")}</p>
+            </div>
+          </div>
 
-      {/* User list */}
-      <div className="space-y-2">
-        {filtered.map(u => {
+          {/* User list */}
+          <div className="space-y-2">
+            {filtered.map(u => {
           const userItems = items.filter(i => i.user_id === u.id);
           const userTickets = tickets.filter(t => t.user_id === u.id);
           const isMe = u.id === myProfile?.id;
@@ -667,11 +688,12 @@ export default function UsersView() {
           <div className="flex justify-end gap-2">
             <Btn variant="secondary" onClick={() => setDeleteConfirm(false)}>{t("cancel")}</Btn>
             <Btn className="!bg-red-600 hover:!bg-red-500" onClick={handleDelete}>
-              {t("confirm")}
             </Btn>
           </div>
         </div>
       </Modal>
+      </>
+      )}
     </div>
   );
 }

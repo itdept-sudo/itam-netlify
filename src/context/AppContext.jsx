@@ -28,6 +28,7 @@ export function AppProvider({ children }) {
   const [dashboardStats, setDashboardStats] = useState({ items: 0, tickets: 0, pending: 0, active: 0 });
   const [dataLoading, setDataLoading] = useState(true);
   const [language, setLanguage] = useState(() => localStorage.getItem("itam_lang") || "es");
+  const [systemSettings, setSystemSettings] = useState({});
 
   const t = useMemo(() => (key) => translations[language][key] || key, [language]);
 
@@ -90,19 +91,30 @@ export function AppProvider({ children }) {
         supabase.from("asset_relations").select("*"),
         supabase.from("movements").select("*").order("created_at", { ascending: false }).limit(100),
       ];
+      
+      // Intentar cargar configs del sistema sin fallar si no existe (por migración pendiente)
+      const settingsPromise = supabase.from("system_settings").select("*").catch(() => null);
+      promises.push(settingsPromise);
 
       if (forceMetadata || !brands.length) {
         promises.push(syncMetadata());
       }
 
-      const [iRes, tRes, uRes, mRes, rRes, mvRes] = await Promise.all(promises);
+      const resAll = await Promise.all(promises);
+      const [iRes, tRes, uRes, mRes, rRes, mvRes, sysRes] = resAll;
 
-      if (iRes.data) setItems(iRes.data);
-      if (tRes.data) setTickets(tRes.data); // Simplified tickets for now, comments paged later
-      if (uRes.data) setUsers(uRes.data);
-      if (mRes.data) setModels(mRes.data);
-      if (rRes.data) setRelations(rRes.data);
-      if (mvRes.data) setMovements(mvRes.data);
+      if (iRes?.data) setItems(iRes.data);
+      if (tRes?.data) setTickets(tRes.data); 
+      if (uRes?.data) setUsers(uRes.data);
+      if (mRes?.data) setModels(mRes.data);
+      if (rRes?.data) setRelations(rRes.data);
+      if (mvRes?.data) setMovements(mvRes.data);
+      
+      if (sysRes?.data) {
+        const settingsMap = {};
+        sysRes.data.forEach(s => settingsMap[s.setting_key] = s.setting_value);
+        setSystemSettings(settingsMap);
+      }
       
       await fetchDashboardStats();
     } catch (err) { 
@@ -220,8 +232,26 @@ export function AppProvider({ children }) {
         }
       })
 
-      // ── METADATA ──
-      .on("postgres_changes", { event: "*", schema: "public", table: "areas" }, syncMetadata)
+      // ── AREAS ──
+      .on("postgres_changes", { event: "*", schema: "public", table: "areas" }, (payload) => {
+        if (payload.eventType === "INSERT") setAreas(prev => { const n = [...prev, payload.new].sort((a,b)=>a.name.localeCompare(b.name)); localStorage.setItem("itam_areas", JSON.stringify(n)); return n; });
+        if (payload.eventType === "UPDATE") setAreas(prev => { const n = prev.map(a => a.id === payload.new.id ? payload.new : a).sort((a,b)=>a.name.localeCompare(b.name)); localStorage.setItem("itam_areas", JSON.stringify(n)); return n; });
+        if (payload.eventType === "DELETE") setAreas(prev => { const n = prev.filter(a => a.id !== payload.old.id); localStorage.setItem("itam_areas", JSON.stringify(n)); return n; });
+      })
+      
+      // ── SYSTEM SETTINGS ──
+      .on("postgres_changes", { event: "*", schema: "public", table: "system_settings" }, (payload) => {
+        if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+          setSystemSettings(prev => ({ ...prev, [payload.new.setting_key]: payload.new.setting_value }));
+        }
+        if (payload.eventType === "DELETE") {
+          setSystemSettings(prev => {
+            const next = {...prev};
+            delete next[payload.old.setting_key];
+            return next;
+          });
+        }
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "brands" }, syncMetadata)
       .on("postgres_changes", { event: "*", schema: "public", table: "asset_types" }, syncMetadata)
       .subscribe();
@@ -549,6 +579,12 @@ export function AppProvider({ children }) {
     showToast("userDeleted", "error");
   };
 
+  const updateSystemSetting = async (key, value) => {
+    const { error } = await supabase.from("system_settings").upsert({ setting_key: key, setting_value: value });
+    if (error) { showToast(error.message, "error"); return; }
+    setSystemSettings(prev => ({ ...prev, [key]: value }));
+  };
+
   useEffect(() => {
     localStorage.setItem("itam_unread_notifications", JSON.stringify(unreadNotifications));
   }, [unreadNotifications]);
@@ -562,6 +598,7 @@ export function AppProvider({ children }) {
       dataLoading, showToast, clearToast, toast, fetchAll, dashboardStats, fetchDashboardStats, syncMetadata,
       language, t, toggleLanguage,
       unreadNotifications, clearNotifications, markNotificationRead,
+      systemSettings, updateSystemSetting,
       createBrand, updateBrand, deleteBrand,
       createAssetType, updateAssetType, deleteAssetType,
       createArea, updateArea, deleteArea,
