@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Monitor, Loader2, Mail, Lock, User, ArrowRight, Send } from "lucide-react";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { useApp } from "../context/AppContext";
 
