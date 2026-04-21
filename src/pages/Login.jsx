@@ -19,6 +19,17 @@ export default function LoginPage() {
   const [empNo, setEmpNo] = useState("");
   const [guestName, setGuestName] = useState("");
   const [ticketForm, setTicketForm] = useState({ title: "", description: "", photos: [] });
+  const [onSite, setOnSite] = useState(false);
+  const ALLOWED_IP = "187.249.0.68";
+
+  useEffect(() => {
+    fetch("https://api.ipify.org?format=json")
+      .then(r => r.json())
+      .then(data => {
+        if (data.ip === ALLOWED_IP) setOnSite(true);
+      })
+      .catch(e => console.error("IP check failed:", e));
+  }, []);
 
   const handleGoogle = async () => {
     setGLoading(true);
@@ -248,15 +259,17 @@ export default function LoginPage() {
                 </button>
               </p>
 
-              <div className="mt-8 pt-6 border-t border-slate-700/50">
-                <button
-                  onClick={() => { setMode("guest_validate"); setError(""); setSuccess(""); }}
-                  className="w-full py-3 px-4 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 text-sm font-medium hover:bg-orange-500/20 transition-all flex items-center justify-center gap-2"
-                >
-                  <User size={16} />
-                  {t("guestMode")}
-                </button>
-              </div>
+              {onSite && (
+                <div className="mt-8 pt-6 border-t border-slate-700/50">
+                  <button
+                    onClick={() => { setMode("guest_validate"); setError(""); setSuccess(""); }}
+                    className="w-full py-3 px-4 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 text-sm font-medium hover:bg-orange-500/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <User size={16} />
+                    {t("guestMode")}
+                  </button>
+                </div>
+              )}
             </>
           ) : mode === "guest_validate" ? (
             <div className="space-y-6">

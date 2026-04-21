@@ -1,5 +1,5 @@
 -- ============================================================
--- ITAM DESK — Guest Tickets Migration
+-- ITAM DESK — Guest Tickets Migration (WITH IP RESTRICTION)
 -- ============================================================
 
 -- 1. Añadir columna identificadora a tickets
@@ -19,7 +19,15 @@ SECURITY DEFINER SET search_path = ''
 AS $$
 DECLARE
   v_user public.profiles%ROWTYPE;
+  v_client_ip text;
+  v_allowed_ip text := '187.249.0.68';
 BEGIN
+  -- Validar IP On-site
+  v_client_ip := COALESCE(current_setting('request.headers', true)::json->>'x-forwarded-for', '');
+  IF v_client_ip NOT LIKE '%' || v_allowed_ip || '%' THEN
+    RETURN jsonb_build_object('status', 'forbidden', 'message', 'Acceso denegado: Fuera de la red autorizada');
+  END IF;
+
   SELECT * INTO v_user FROM public.profiles WHERE employee_number = p_emp_no LIMIT 1;
   
   IF NOT FOUND THEN
@@ -44,7 +52,15 @@ AS $$
 DECLARE
   v_user public.profiles%ROWTYPE;
   v_ticket_id uuid;
+  v_client_ip text;
+  v_allowed_ip text := '187.249.0.68';
 BEGIN
+  -- Validar IP On-site
+  v_client_ip := COALESCE(current_setting('request.headers', true)::json->>'x-forwarded-for', '');
+  IF v_client_ip NOT LIKE '%' || v_allowed_ip || '%' THEN
+    RAISE EXCEPTION 'Acceso denegado: Fuera de la red autorizada';
+  END IF;
+
   -- Re-validar por seguridad
   SELECT * INTO v_user FROM public.profiles WHERE employee_number = p_emp_no LIMIT 1;
   
