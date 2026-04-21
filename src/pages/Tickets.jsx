@@ -326,11 +326,12 @@ export default function TicketsView() {
           const model = item ? models.find(m => m.id === item.model_id) : null;
           const TIcon = TICKET_COLORS[ticket.status]?.icon || AlertCircle;
           return (
-            <button key={ticket.id} onClick={() => { selectTicket(ticket); setComment(""); }} className="w-full flex items-center gap-4 p-4 rounded-2xl bg-[#151A24] border border-slate-700/50 hover:border-slate-600/50 transition-all text-left">
+            <button key={ticket.id} onClick={() => { selectTicket(ticket); setComment(""); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${ticket.is_guest ? "bg-orange-500/5 border-orange-500/30 hover:border-orange-500/50" : "bg-[#151A24] border-slate-700/50 hover:border-slate-600/50"}`}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: TICKET_COLORS[ticket.status]?.bg }}><TIcon size={18} style={{ color: TICKET_COLORS[ticket.status]?.text }} /></div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">TK-{ticket.ticket_number}</span>
+                  {ticket.is_guest && <span className="text-[10px] font-bold text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20 uppercase tracking-tighter">{t("isGuest")}</span>}
                   <p className="text-sm font-medium text-slate-200 truncate">{ticket.title}</p>
                   <StatusBadge status={ticket.status} type="ticket" />
                 </div>
@@ -441,6 +442,7 @@ export default function TicketsView() {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <StatusBadge status={detailTicket.status} type="ticket" />
+                  {detailTicket.is_guest && <span className="text-[10px] font-bold text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20 uppercase tracking-tighter">{t("isGuest")}</span>}
                   <span className="text-xs text-slate-500">{new Date(detailTicket.created_at).toLocaleString()}</span>
                 </div>
                 <p className="text-sm text-slate-300 whitespace-pre-wrap">{detailTicket.description}</p>

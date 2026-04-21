@@ -607,6 +607,22 @@ export function AppProvider({ children }) {
       createRelation, deleteRelation,
       createTicket, updateTicketStatus, addTicketComment,
       updateUserProfile, toggleUserActive, deleteUserProfile,
+      checkGuestStatus: async (empNo) => {
+        const { data, error } = await supabase.rpc('check_guest_status', { p_emp_no: empNo });
+        if (error) { showToast(error.message, "error"); return null; }
+        return data;
+      },
+      createGuestTicket: async (ticketData) => {
+        const { data, error } = await supabase.rpc('create_guest_ticket', {
+          p_emp_no: ticketData.employee_number,
+          p_title: ticketData.title,
+          p_desc: ticketData.description,
+          p_images: ticketData.images || []
+        });
+        if (error) { showToast(error.message, "error"); return null; }
+        showToast("ticketCreated");
+        return data;
+      },
     }}>
       {children}
     </AppContext.Provider>

@@ -59,6 +59,15 @@ export const translations = {
     loginNow: "Inicia Sesión",
     confirmEmail: "Cuenta creada. Revisa tu correo para confirmar.",
     invalidCredentials: "Credenciales inválidas. Verifica tu email y contraseña.",
+    guestMode: "Inicio como visitante",
+    enterEmployeeNumber: "Ingresa tu número de empleado",
+    employeeNotFound: "Número de empleado no encontrado",
+    mustLogin: "Tienes una cuenta activa. Por favor, inicia sesión con Google o Email.",
+    guestTicketTitle: "Levantar Ticket (Visitante)",
+    guestGreeting: "Hola, {{name}}",
+    back: "Volver",
+    isGuest: "Visitante",
+    check: "Verificar",
     
     // Toast / CRUD
     brandCreated: "Marca creada",
@@ -327,6 +336,15 @@ export const translations = {
     loginNow: "Log in now",
     confirmEmail: "Account created. Check your email to confirm.",
     invalidCredentials: "Invalid credentials. Check your email and password.",
+    guestMode: "Guest Login",
+    enterEmployeeNumber: "Enter your employee number",
+    employeeNotFound: "Employee number not found",
+    mustLogin: "You have an active account. Please log in with Google or Email.",
+    guestTicketTitle: "Create Ticket (Guest)",
+    guestGreeting: "Hello, {{name}}",
+    back: "Back",
+    isGuest: "Guest",
+    check: "Check",
     
     // Toast / CRUD
     brandCreated: "Brand created",
