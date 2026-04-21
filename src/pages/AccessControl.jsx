@@ -220,7 +220,12 @@ export default function AccessControl() {
         throw new Error("Debes seleccionar al menos una puerta de acceso.");
       }
 
-      // 2. Create the Access Request with a manually generated token for safety
+      // 2. Create the Access Request (Auto-approve if only Entrada Personal and no IT)
+      const isAutoApproved = 
+        altaSelectedDoors.length === 1 && 
+        altaSelectedDoors[0] === "Entrada Personal" && 
+        altaSelectedIT.length === 0;
+
       const requestToken = crypto.randomUUID();
       
       const { data: request, error: reqError } = await supabase
@@ -232,7 +237,7 @@ export default function AccessControl() {
           it_requirements: altaSelectedIT,
           requested_by: profile.id,
           puesto_encargado: altaPuesto,
-          status: "Pendiente",
+          status: isAutoApproved ? "Aprobado" : "Pendiente",
           token: requestToken // Enviar token manualmente
         })
         .select()
@@ -240,27 +245,38 @@ export default function AccessControl() {
 
       if (reqError) throw reqError;
 
-      // 3. Enviar correo (no-bloqueante)
-      console.log("Enviando correo con token:", requestToken);
-      
-      fetch("/api/send-access-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employeeName: `${user.first_name} ${user.last_name_paternal}`,
-          employeeNumber: user.employee_number,
-          cardNumber: user.card_number,
-          department: user.department,
-          requestType: "Alta",
-          requestedDoors: altaSelectedDoors,
-          itRequirements: altaSelectedIT,
-          token: requestToken,
-          puestoEncargado: altaPuesto,
-          requesterName: profile.full_name
-        })
-      }).catch(e => console.warn("Correo no enviado:", e));
+      // 3. Notify IT: Create ticket if auto-approved, otherwise send approval email
+      if (isAutoApproved) {
+        await supabase.from("tickets").insert({
+          title: `⚙️ IT/Alta: ${user.full_name} (#${user.employee_number})`,
+          description: `Alta de usuario de producción con acceso básico (Entrada Personal).\nDepartamento: ${user.department}\nPuesto: ${altaPuesto || 'N/A'}`,
+          user_id: profile.id,
+          status: "Abierto"
+        });
+        showToast("Alta registrada y aprobada automáticamente (Acceso Básico).", "success");
+      } else {
+        // Enviar correo (no-bloqueante)
+        console.log("Enviando correo con token:", requestToken);
+        
+        fetch("/api/send-access-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employeeName: `${user.first_name} ${user.last_name_paternal}`,
+            employeeNumber: user.employee_number,
+            cardNumber: user.card_number,
+            department: user.department,
+            requestType: "Alta",
+            requestedDoors: altaSelectedDoors,
+            itRequirements: altaSelectedIT,
+            token: requestToken,
+            puestoEncargado: altaPuesto,
+            requesterName: profile.full_name
+          })
+        }).catch(e => console.warn("Correo no enviado:", e));
 
-      showToast("Alta registrada. IT será notificado para autorizar los accesos.", "success");
+        showToast("Alta registrada. IT será notificado para autorizar los accesos.", "success");
+      }
       
       // Reset
       setAltaEmployeeNumber("");
