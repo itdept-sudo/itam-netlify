@@ -51,6 +51,7 @@ SECURITY DEFINER SET search_path = ''
 AS $$
 DECLARE
   v_user public.profiles%ROWTYPE;
+  v_ticket_row public.tickets%ROWTYPE;
   v_ticket_id uuid;
   v_client_ip text;
   v_allowed_ip text := '187.249.0.68';
@@ -75,8 +76,14 @@ BEGIN
   -- Insertar el ticket de visitante
   INSERT INTO public.tickets (title, description, user_id, status, is_guest, images)
   VALUES (p_title, p_desc, v_user.id, 'Abierto', true, COALESCE(p_images, '[]'::jsonb))
-  RETURNING id INTO v_ticket_id;
+  RETURNING * INTO v_ticket_row;
 
-  RETURN jsonb_build_object('success', true, 'ticket_id', v_ticket_id);
+  RETURN jsonb_build_object(
+    'success', true, 
+    'ticket_id', v_ticket_row.id,
+    'ticket_number', v_ticket_row.ticket_number,
+    'requester_name', v_user.full_name,
+    'title', v_ticket_row.title
+  );
 END;
 $$;
