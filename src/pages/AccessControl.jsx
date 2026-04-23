@@ -376,8 +376,7 @@ export default function AccessControl() {
           requested_doors: selectedDoors,
           requested_by: profile.id,
           puesto_encargado: actPuesto,
-          status: "Aprobado",
-          note: "Asignación directa (Acceso Rápido)"
+          status: "Aprobado"
         });
       
       if (reqError) throw reqError;
