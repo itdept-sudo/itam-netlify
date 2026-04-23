@@ -622,8 +622,8 @@ export default function AccessControl() {
           </form>
         )}
 
-        {/* ACTUALIZACION & BAJA TABS (Require Search) */}
-        {(activeTab === "actualizacion" || activeTab === "baja") && (
+        {/* ACTUALIZACION, DIRECTA & BAJA TABS (Require Search) */}
+        {(activeTab === "actualizacion" || activeTab === "directa" || activeTab === "baja") && (
           <div className="space-y-6">
             <form onSubmit={handleSearch} className="flex gap-3">
               <input
