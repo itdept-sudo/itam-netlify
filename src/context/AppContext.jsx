@@ -459,7 +459,24 @@ export function AppProvider({ children }) {
     }
 
     setTickets(p => [{ ...data, comments: [] }, ...p]);
-    showToast("ticketCreated"); return data;
+    showToast("ticketCreated");
+
+    // Notificación al departamento de TI
+    const u = users.find(x => x.id === data.user_id);
+    fetch("/api/send-ticket-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        to: "itdept@prosper-mfg.com", 
+        userName: u?.full_name || "Usuario", 
+        ticketTitle: data.title, 
+        ticketNumber: data.ticket_number,
+        ticketId: data.id,
+        type: "new_ticket" 
+      })
+    }).catch(e => console.error("[Notification] Error enviando alerta a TI:", e));
+
+    return data;
   };
   const updateTicketStatus = async (id, status) => {
     const ticket = tickets.find(t => t.id === id);
@@ -621,6 +638,28 @@ export function AppProvider({ children }) {
         });
         if (error) { showToast(error.message, "error"); return null; }
         showToast("ticketCreated");
+
+        // Notificación al departamento de TI (Modo Invitado)
+        if (data?.ticket_id) {
+          supabase.from("tickets").select("*, profiles(full_name)").eq("id", data.ticket_id).single()
+            .then(({ data: fullT }) => {
+              if (fullT) {
+                fetch("/api/send-ticket-email", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ 
+                    to: "itdept@prosper-mfg.com", 
+                    userName: fullT.profiles?.full_name || `Invitado (No. Emp: ${ticketData.employee_number})`, 
+                    ticketTitle: fullT.title, 
+                    ticketNumber: fullT.ticket_number,
+                    ticketId: fullT.id,
+                    type: "new_ticket" 
+                  })
+                }).catch(e => console.error("[Notification] Error enviando alerta a TI (Invitado):", e));
+              }
+            });
+        }
+
         return data;
       },
     }}>
