@@ -357,6 +357,10 @@ export default function AccessControl() {
   };
 
   const handleDirectAssignment = async () => {
+    if (profile?.role !== 'admin') {
+      showToast("Solo administradores pueden realizar asignaciones directas.", "error");
+      return;
+    }
     if (!foundUser) return;
     if (selectedDoors.length === 0) {
       showToast("Debes seleccionar al menos una puerta.", "error");
@@ -506,14 +510,16 @@ export default function AccessControl() {
         >
           <UserCog size={16} /> Solicitud Cambio
         </button>
-        <button
-          onClick={() => { setActiveTab("directa"); setFoundUser(null); setSearchQuery(""); }}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-            activeTab === "directa" ? "bg-emerald-600 text-white shadow" : "text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <CheckCircle size={16} /> Asignación Directa
-        </button>
+        {profile?.role === 'admin' && (
+          <button
+            onClick={() => { setActiveTab("directa"); setFoundUser(null); setSearchQuery(""); }}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+              activeTab === "directa" ? "bg-emerald-600 text-white shadow" : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <CheckCircle size={16} /> Asignación Directa
+          </button>
+        )}
         <button
           onClick={() => { setActiveTab("baja"); setFoundUser(null); setSearchQuery(""); }}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
@@ -800,7 +806,7 @@ export default function AccessControl() {
                       <th className="px-6 py-4 font-medium">Departamento</th>
                       <th className="px-6 py-4 font-medium">Estado</th>
                       <th className="px-6 py-4 font-medium">Accesos Vigentes</th>
-                      <th className="px-6 py-4 font-medium text-right">Acciones</th>
+                      {profile?.role === 'admin' && <th className="px-6 py-4 font-medium text-right">Acciones</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 bg-[#151A24]">
@@ -834,23 +840,25 @@ export default function AccessControl() {
                             )) : <span className="text-slate-500 italic text-xs">Sin accesos</span>}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => {
-                              setActiveTab("directa");
-                              setSearchQuery(user.employee_number);
-                              setFoundUser({
-                                ...user,
-                                sourceType: user.role === 'produccion' ? 'production' : 'system'
-                              });
-                              setSelectedDoors(user.activeDoors);
-                            }}
-                            className="p-2 hover:bg-slate-700 rounded-lg text-emerald-500 transition-colors"
-                            title="Asignación Rápida"
-                          >
-                            <UserCog size={18} />
-                          </button>
-                        </td>
+                        {profile?.role === 'admin' && (
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              onClick={() => {
+                                setActiveTab("directa");
+                                setSearchQuery(user.employee_number);
+                                setFoundUser({
+                                  ...user,
+                                  sourceType: user.role === 'produccion' ? 'production' : 'system'
+                                });
+                                setSelectedDoors(user.activeDoors);
+                              }}
+                              className="p-2 hover:bg-slate-700 rounded-lg text-emerald-500 transition-colors"
+                              title="Asignación Rápida"
+                            >
+                              <UserCog size={18} />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                     {directoryUsers.length === 0 && (
