@@ -23,7 +23,7 @@ const IT_REQUIREMENTS = [
 export default function AccessControl() {
   const { profile } = useAuth();
   const { showToast } = useApp();
-  const [activeTab, setActiveTab] = useState("alta"); // alta, actualizacion, baja, directorio
+  const [activeTab, setActiveTab] = useState("alta"); // alta, actualizacion, directa, baja, directorio
   const [loading, setLoading] = useState(false);
 
   // Directory State
@@ -356,6 +356,43 @@ export default function AccessControl() {
     }
   };
 
+  const handleDirectAssignment = async () => {
+    if (!foundUser) return;
+    if (selectedDoors.length === 0) {
+      showToast("Debes seleccionar al menos una puerta.", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error: reqError } = await supabase
+        .from("access_requests")
+        .insert({
+          user_id: foundUser.id,
+          request_type: "Actualizacion",
+          requested_doors: selectedDoors,
+          requested_by: profile.id,
+          puesto_encargado: actPuesto,
+          status: "Aprobado",
+          note: "Asignación directa (Acceso Rápido)"
+        });
+      
+      if (reqError) throw reqError;
+
+      showToast("Accesos asignados correctamente.", "success");
+      setSelectedDoors([]);
+      setActPuesto("");
+      setFoundUser(null);
+      setSearchQuery("");
+      setActiveTab("directorio"); 
+      
+    } catch (err) {
+      console.error(err);
+      showToast("Error: " + err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleBaja = async () => {
     if (!foundUser) return;
     setLoading(true);
@@ -467,7 +504,15 @@ export default function AccessControl() {
             activeTab === "actualizacion" ? "bg-amber-600 text-white shadow" : "text-slate-400 hover:text-slate-200"
           }`}
         >
-          <UserCog size={16} /> Actualizar Permisos
+          <UserCog size={16} /> Solicitud Cambio
+        </button>
+        <button
+          onClick={() => { setActiveTab("directa"); setFoundUser(null); setSearchQuery(""); }}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+            activeTab === "directa" ? "bg-emerald-600 text-white shadow" : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <CheckCircle size={16} /> Asignación Directa
         </button>
         <button
           onClick={() => { setActiveTab("baja"); setFoundUser(null); setSearchQuery(""); }}
@@ -603,6 +648,40 @@ export default function AccessControl() {
                   <div><span className="text-slate-500 block">Departamento</span> <span className="text-slate-200">{foundUser.department}</span></div>
                 </div>
 
+                {activeTab === "directa" && (
+                  <div className="space-y-4 pt-4 border-t border-slate-800">
+                    <h4 className="text-sm font-medium text-slate-300">Asignar Permisos Vigentes (Inmediato)</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {DOORS.map(door => (
+                        <button
+                          key={door}
+                          type="button"
+                          onClick={() => toggleDoor(door)}
+                          className={`px-4 py-2 rounded-xl text-sm transition-colors border ${
+                            selectedDoors.includes(door)
+                              ? "bg-emerald-600 text-white border-emerald-500 shadow-sm shadow-emerald-500/20"
+                              : "bg-[#151A24] text-slate-300 border-slate-700 hover:border-slate-500"
+                          }`}
+                        >
+                          {door}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    <div className="pt-2 max-w-sm">
+                      <label className="text-sm font-medium text-slate-300 block mb-1">Puesto Asignado (Opcional)</label>
+                      <input value={actPuesto} onChange={e => setActPuesto(e.target.value)} placeholder="Ej. Operador"
+                        className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500" />
+                    </div>
+
+                    <div className="flex justify-end pt-4">
+                      <button disabled={loading} onClick={handleDirectAssignment} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-medium transition-all disabled:opacity-50">
+                        {loading ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />} Guardar Accesos
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {activeTab === "actualizacion" && (
                   <div className="space-y-4 pt-4 border-t border-slate-800">
                     <h4 className="text-sm font-medium text-slate-300">Solicitar Puertas Adicionales</h4>
@@ -721,6 +800,7 @@ export default function AccessControl() {
                       <th className="px-6 py-4 font-medium">Departamento</th>
                       <th className="px-6 py-4 font-medium">Estado</th>
                       <th className="px-6 py-4 font-medium">Accesos Vigentes</th>
+                      <th className="px-6 py-4 font-medium text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 bg-[#151A24]">
@@ -753,6 +833,23 @@ export default function AccessControl() {
                               </span>
                             )) : <span className="text-slate-500 italic text-xs">Sin accesos</span>}
                           </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={() => {
+                              setActiveTab("directa");
+                              setSearchQuery(user.employee_number);
+                              setFoundUser({
+                                ...user,
+                                sourceType: user.role === 'produccion' ? 'production' : 'system'
+                              });
+                              setSelectedDoors(user.activeDoors);
+                            }}
+                            className="p-2 hover:bg-slate-700 rounded-lg text-emerald-500 transition-colors"
+                            title="Asignación Rápida"
+                          >
+                            <UserCog size={18} />
+                          </button>
                         </td>
                       </tr>
                     ))}
