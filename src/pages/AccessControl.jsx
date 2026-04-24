@@ -58,6 +58,9 @@ export default function AccessControl() {
   // Actualización Form
   const [selectedDoors, setSelectedDoors] = useState([]);
   const [actPuesto, setActPuesto] = useState("");
+  const [actCardNumber, setActCardNumber] = useState("");
+  const [existingDoors, setExistingDoors] = useState([]);
+  const [cardHistory, setCardHistory] = useState([]);
 
   const fetchDirectory = async () => {
     setLoadingDirectory(true);
@@ -150,20 +153,24 @@ export default function AccessControl() {
     setFoundUser(null);
     setAssignedItems([]);
     setSelectedDoors([]);
+    setExistingDoors([]);
+    setActCardNumber("");
+    setCardHistory([]);
 
     try {
-      // Ahora buscamos únicamente en la tabla de perfiles unificada
+      // Buscamos en la tabla de perfiles unificada incluyendo sus solicitudes
       let { data, error } = await supabase
         .from("profiles")
-        .select("*")
+        .select(`
+          *,
+          access_requests!access_requests_user_id_fkey(*)
+        `)
         .or(`employee_number.ilike.%${searchQuery}%,full_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
         .limit(1)
         .single();
       
-      let finalUser = null;
-
       if (!error && data) {
-        finalUser = {
+        const finalUser = {
           ...data,
           id: data.id,
           sourceType: data.role === 'produccion' ? 'production' : 'system',
@@ -171,7 +178,48 @@ export default function AccessControl() {
         };
 
         setFoundUser(finalUser);
+        setActCardNumber(data.card_number || "");
         
+        // Calcular puertas actuales y extraer historial de tarjetas
+        let currentDoors = new Set();
+        let history = [];
+        if (data.card_number) {
+          history.push({ card: data.card_number, date: data.created_at, label: "Original" });
+        }
+
+        if (data.access_requests) {
+          let isActive = true;
+          // Ordenar por fecha de creación para procesar secuencialmente
+          const sortedReqs = [...data.access_requests].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+          
+          sortedReqs.forEach(req => {
+            if (req.status === 'Aprobado') {
+              if (req.request_type === 'Baja') {
+                isActive = false;
+                currentDoors.clear();
+              } else if (req.request_type === 'Alta' || req.request_type === 'Actualizacion') {
+                if (isActive) {
+                  (req.requested_doors || []).forEach(d => currentDoors.add(d));
+                }
+              }
+              
+              // Buscar cambios de tarjeta en it_requirements
+              if (req.it_requirements) {
+                const cardReq = req.it_requirements.find(it => it.startsWith("TARJETA:"));
+                if (cardReq) {
+                  const cardNum = cardReq.split(":")[1];
+                  history.push({ card: cardNum, date: req.updated_at || req.created_at, label: "Solicitud " + req.request_type });
+                }
+              }
+            }
+          });
+        }
+
+        const doorsArray = Array.from(currentDoors);
+        setExistingDoors(doorsArray);
+        setSelectedDoors(doorsArray); // Pre-seleccionar
+        setCardHistory(history.reverse()); // Más reciente primero
+
         const { data: itemsFound } = await supabase
           .from("items")
           .select(`
@@ -306,8 +354,12 @@ export default function AccessControl() {
     setLoading(true);
     try {
       // Create request with manual token
-      const requestToken = crypto.randomUUID();
-      
+      // Preparar it_requirements si hay cambio de tarjeta
+      const finalIT = [];
+      if (actCardNumber && actCardNumber !== foundUser.card_number) {
+        finalIT.push(`TARJETA:${actCardNumber}`);
+      }
+
       const { data: request, error: reqError } = await supabase
         .from("access_requests")
         .insert({
@@ -317,7 +369,8 @@ export default function AccessControl() {
           requested_by: profile.id,
           puesto_encargado: actPuesto,
           status: "Pendiente",
-          token: requestToken
+          token: requestToken,
+          it_requirements: finalIT
         })
         .select()
         .single();
@@ -333,6 +386,7 @@ export default function AccessControl() {
         body: JSON.stringify({
           employeeName: `${foundUser.first_name} ${foundUser.last_name_paternal}`,
           employeeNumber: foundUser.employee_number,
+          cardNumber: actCardNumber !== foundUser.card_number ? actCardNumber : foundUser.card_number,
           department: foundUser.department,
           requestType: "Actualizacion",
           requestedDoors: selectedDoors,
@@ -345,6 +399,7 @@ export default function AccessControl() {
       showToast("Actualización solicitada. IT será notificado para autorizar los accesos.", "success");
       setSelectedDoors([]);
       setActPuesto("");
+      setActCardNumber("");
       setFoundUser(null);
       setSearchQuery("");
       
@@ -368,6 +423,14 @@ export default function AccessControl() {
     }
     setLoading(true);
     try {
+      // Si hay cambio de tarjeta, actualizar perfil directamente
+      if (actCardNumber && actCardNumber !== foundUser.card_number) {
+        await supabase
+          .from("profiles")
+          .update({ card_number: actCardNumber })
+          .eq("id", foundUser.id);
+      }
+
       const { error: reqError } = await supabase
         .from("access_requests")
         .insert({
@@ -673,10 +736,17 @@ export default function AccessControl() {
                       ))}
                     </div>
                     
-                    <div className="pt-2 max-w-sm">
-                      <label className="text-sm font-medium text-slate-300 block mb-1">Puesto Asignado (Opcional)</label>
-                      <input value={actPuesto} onChange={e => setActPuesto(e.target.value)} placeholder="Ej. Operador"
-                        className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      <div className="max-w-sm">
+                        <label className="text-sm font-medium text-slate-300 block mb-1">Puesto Asignado (Opcional)</label>
+                        <input value={actPuesto} onChange={e => setActPuesto(e.target.value)} placeholder="Ej. Operador"
+                          className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500" />
+                      </div>
+                      <div className="max-w-sm">
+                        <label className="text-sm font-medium text-slate-300 block mb-1">Número de Tarjeta</label>
+                        <input value={actCardNumber} onChange={handleNumberInput(setActCardNumber)} placeholder="Solo números"
+                          className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500" />
+                      </div>
                     </div>
 
                     <div className="flex justify-end pt-4">
@@ -707,11 +777,32 @@ export default function AccessControl() {
                       ))}
                     </div>
                     
-                    <div className="pt-2 max-w-sm">
-                      <label className="text-sm font-medium text-slate-300 block mb-1">Puesto Encargado (Opcional)</label>
-                      <input value={actPuesto} onChange={e => setActPuesto(e.target.value)} placeholder="Ej. Supervisor de Línea"
-                        className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      <div className="max-w-sm">
+                        <label className="text-sm font-medium text-slate-300 block mb-1">Puesto Encargado (Opcional)</label>
+                        <input value={actPuesto} onChange={e => setActPuesto(e.target.value)} placeholder="Ej. Supervisor de Línea"
+                          className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500" />
+                      </div>
+                      <div className="max-w-sm">
+                        <label className="text-sm font-medium text-slate-300 block mb-1">Número de Tarjeta</label>
+                        <input value={actCardNumber} onChange={handleNumberInput(setActCardNumber)} placeholder="Solo números"
+                          className="w-full bg-[#0B0E14] border border-slate-800 text-slate-200 text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500" />
+                      </div>
                     </div>
+
+                    {cardHistory.length > 0 && (
+                      <div className="pt-4">
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Historial de Tarjetas</label>
+                        <div className="flex flex-wrap gap-2">
+                          {cardHistory.map((h, i) => (
+                            <div key={i} className="bg-slate-800/40 border border-slate-700/50 rounded-lg px-3 py-1.5 flex flex-col">
+                              <span className="text-sm font-mono text-slate-200">{h.card}</span>
+                              <span className="text-[10px] text-slate-500">{new Date(h.date).toLocaleDateString()} · {h.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex justify-end pt-4">
                       <button disabled={loading} onClick={handleActualizacion} className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white px-6 py-3 rounded-xl font-medium transition-all disabled:opacity-50">

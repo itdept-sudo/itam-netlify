@@ -67,7 +67,7 @@ export default async function handler(req, res) {
       : "N/A";
 
     const itReqHtml = itRequirements && itRequirements.length > 0
-      ? `<p><strong>Requerimientos IT:</strong> <ul>${itRequirements.map(req => `<li style="margin-bottom:4px;">${req}</li>`).join("")}</ul></p>`
+      ? `<p><strong>Requerimientos IT:</strong> <ul>${itRequirements.filter(req => !req.startsWith("TARJETA:")).map(req => `<li style="margin-bottom:4px;">${req}</li>`).join("")}</ul></p>`
       : "";
 
     const subject = `🚪 Solicitud de ${requestType} de Acceso: ${employeeName}`;

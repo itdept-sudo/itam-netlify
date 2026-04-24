@@ -103,6 +103,19 @@ Nota: Este ticket fue generado automáticamente tras la aprobación vía correo 
       
       ticketId = ticket.id;
       console.log("[APPROVAL] Ticket created successfully:", ticketId);
+
+      // 3. Update profile if there is a new card number in it_requirements
+      if (request.it_requirements && request.it_requirements.length > 0) {
+        const cardReq = request.it_requirements.find(it => it.startsWith("TARJETA:"));
+        if (cardReq) {
+          const newCardNumber = cardReq.split(":")[1];
+          console.log("[APPROVAL] Updating user card number:", newCardNumber);
+          await supabase
+            .from("profiles")
+            .update({ card_number: newCardNumber })
+            .eq("id", request.user_id);
+        }
+      }
     }
 
     // 3. Update the access request status
