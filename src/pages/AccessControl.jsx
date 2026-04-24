@@ -85,11 +85,12 @@ export default function AccessControl() {
           const approvedRequests = user.access_requests.filter(req => req.status === 'Aprobado');
           
           approvedRequests.forEach(req => {
-            if (req.request_type === 'Baja') {
-              isActive = false;
-              activeDoors.clear(); // If baja is approved, remove all doors
-            } else if (req.request_type === 'Alta' || req.request_type === 'Actualizacion') {
-              if (isActive) {
+            if (req.status === 'Aprobado') {
+              if (req.request_type === 'Baja') {
+                isActive = false;
+                activeDoors.clear(); // If baja is approved, remove all doors
+              } else if (req.request_type === 'Alta' || req.request_type === 'Actualizacion') {
+                isActive = true; // Reset to active if it was a baja
                 (req.requested_doors || []).forEach(d => activeDoors.add(d));
               }
             }
@@ -198,9 +199,8 @@ export default function AccessControl() {
                 isActive = false;
                 currentDoors.clear();
               } else if (req.request_type === 'Alta' || req.request_type === 'Actualizacion') {
-                if (isActive) {
-                  (req.requested_doors || []).forEach(d => currentDoors.add(d));
-                }
+                isActive = true; // Reset to active if it was a baja
+                (req.requested_doors || []).forEach(d => currentDoors.add(d));
               }
               
               // Buscar cambios de tarjeta en it_requirements
@@ -761,14 +761,14 @@ export default function AccessControl() {
                   <div className="space-y-4 pt-4 border-t border-slate-800">
                     <h4 className="text-sm font-medium text-slate-300">Solicitar Puertas Adicionales</h4>
                     <div className="flex flex-wrap gap-2">
-                      {DOORS.filter(d => d !== "Entrada Personal").map(door => (
+                      {DOORS.map(door => (
                         <button
                           key={door}
                           type="button"
                           onClick={() => toggleDoor(door)}
                           className={`px-4 py-2 rounded-xl text-sm transition-colors border ${
                             selectedDoors.includes(door)
-                              ? "bg-amber-500 text-white border-amber-400"
+                              ? "bg-amber-500 text-white border-amber-400 shadow-sm shadow-amber-500/20"
                               : "bg-[#151A24] text-slate-300 border-slate-700 hover:border-slate-500"
                           }`}
                         >
