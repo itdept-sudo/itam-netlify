@@ -371,6 +371,7 @@ export default function AccessControl() {
     }
     setLoading(true);
     try {
+      const requestToken = crypto.randomUUID();
       // Create request with manual token
       // Preparar it_requirements si hay cambio de tarjeta
       const finalIT = [];
