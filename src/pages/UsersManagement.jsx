@@ -88,8 +88,10 @@ export default function UsersView() {
   });
 
   const handleElevate = async () => {
-    if (!elevateForm.email.endsWith("@prosper-mfg.com")) {
-      showToast("Solo se permiten correos @prosper-mfg.com", "error");
+    const domainsStr = systemSettings?.trusted_domains || "@prosper-mfg.com";
+    const domains = domainsStr.split(",").map(d => d.trim().toLowerCase());
+    if (!domains.some(d => elevateForm.email.toLowerCase().endsWith(d))) {
+      showToast(`Solo se permiten correos de los dominios: ${domains.join(", ")}`, "error");
       return;
     }
     setElevating(true);
@@ -339,17 +341,30 @@ export default function UsersView() {
       {activeTab === "settings" ? (
         <div className="p-6 bg-[#151A24] border border-slate-700/50 rounded-2xl animate-fade-in space-y-6">
           <div>
-            <h3 className="text-lg font-semibold text-slate-100">Mantenimiento Preventivo</h3>
-            <p className="text-sm text-slate-500">Configura cada cuántos días se revisará el inventario para generar tickets automáticos.</p>
+            <h3 className="text-lg font-semibold text-slate-100">Configuración del Sistema</h3>
+            <p className="text-sm text-slate-500">Parámetros generales de la plataforma.</p>
           </div>
-          <div className="max-w-xs space-y-3">
-            <Input 
-              label="Días para Mantenimiento" 
-              type="number" 
-              value={systemSettings?.maintenance_interval_days || 30} 
-              onChange={e => updateSystemSetting("maintenance_interval_days", parseInt(e.target.value) || 30)} 
-            />
-            <p className="text-xs text-slate-500">Valor por defecto: 30</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-slate-300">Mantenimiento Preventivo</h4>
+              <Input 
+                label="Días para Mantenimiento" 
+                type="number" 
+                value={systemSettings?.maintenance_interval_days || 30} 
+                onChange={e => updateSystemSetting("maintenance_interval_days", parseInt(e.target.value) || 30)} 
+              />
+              <p className="text-xs text-slate-500">Valor por defecto: 30</p>
+            </div>
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-slate-300">Dominios Permitidos</h4>
+              <Input 
+                label="Dominios separados por coma" 
+                type="text" 
+                value={systemSettings?.trusted_domains || "@prosper-mfg.com"} 
+                onChange={e => updateSystemSetting("trusted_domains", e.target.value)} 
+              />
+              <p className="text-xs text-slate-500">Ej: @prosper-mfg.com,@midominio.com</p>
+            </div>
           </div>
         </div>
       ) : (
@@ -518,14 +533,14 @@ export default function UsersView() {
         <div className="space-y-4">
           <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/20">
             <p className="text-xs text-blue-400">
-              Estás habilitando el acceso web para <span className="text-slate-200 font-medium">{editUser?.full_name}</span>. Se requiere un correo institucional de @prosper-mfg.com.
+              Estás habilitando el acceso web para <span className="text-slate-200 font-medium">{editUser?.full_name}</span>. Se requiere un correo institucional autorizado ({systemSettings?.trusted_domains || "@prosper-mfg.com"}).
             </p>
           </div>
           <Input 
-            label="Correo Electrónico (Prosper MFG)" 
+            label="Correo Electrónico" 
             value={elevateForm.email} 
             onChange={e => setElevateForm(p => ({ ...p, email: e.target.value }))} 
-            placeholder="usuario@prosper-mfg.com" 
+            placeholder="usuario@midominio.com" 
           />
           <Select 
             label="Rol en Plataforma" 
@@ -539,7 +554,7 @@ export default function UsersView() {
           />
           <div className="flex justify-end gap-2 pt-2">
             <Btn variant="secondary" onClick={() => setElevateModal(false)}>{t("cancel")}</Btn>
-            <Btn onClick={handleElevate} disabled={elevating || !elevateForm.email.includes('@prosper-mfg.com')}>
+            <Btn onClick={handleElevate} disabled={elevating || !elevateForm.email || !((systemSettings?.trusted_domains || "@prosper-mfg.com").split(",").map(d=>d.trim().toLowerCase()).some(d => elevateForm.email.toLowerCase().endsWith(d)))}>
               {elevating ? "..." : <Save size={15} />} Confirmar Acceso
             </Btn>
           </div>

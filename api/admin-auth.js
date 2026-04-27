@@ -70,8 +70,19 @@ export default async function handler(req, res) {
     if (action === "elevateUser") {
       const { email, role, userId: profileId } = req.body;
       
-      if (!email.endsWith("@prosper-mfg.com")) {
-        return res.status(400).json({ error: "Dominio no autorizado." });
+      // Fetch trusted domains
+      let trustedDomains = ["@prosper-mfg.com"];
+      try {
+        const { data: settingsData } = await supabase.from('system_settings').select('setting_value').eq('setting_key', 'trusted_domains').single();
+        if (settingsData?.setting_value) {
+          trustedDomains = settingsData.setting_value.split(',').map(d => d.trim().toLowerCase());
+        }
+      } catch (err) {
+        console.warn("[ADMIN-AUTH] Could not fetch trusted domains, defaulting to @prosper-mfg.com", err.message);
+      }
+
+      if (!trustedDomains.some(d => email.toLowerCase().endsWith(d))) {
+        return res.status(400).json({ error: `Dominio no autorizado. Permitidos: ${trustedDomains.join(", ")}` });
       }
 
       // STEP 1: Set the email on the production profile FIRST

@@ -10,7 +10,15 @@ export function AuthProvider({ children }) {
   const profileIdRef = useRef(null);
   const fetchingProfileRef = useRef(null);
 
-
+  const getTrustedDomains = async () => {
+    try {
+      const { data } = await supabase.from('system_settings').select('setting_value').eq('setting_key', 'trusted_domains').single();
+      if (data?.setting_value) {
+        return data.setting_value.split(',').map(d => d.trim().toLowerCase());
+      }
+    } catch (err) {}
+    return ['@prosper-mfg.com'];
+  };
 
   const fetchProfile = useCallback(async (userId, retries = 3) => {
     // Avoid redundant parallel fetches for the same user
@@ -90,7 +98,10 @@ export function AuthProvider({ children }) {
         
         if (s?.user) {
           // Security: Early check for domain
-          if (!s.user.email.endsWith("@prosper-mfg.com")) {
+          const domains = await getTrustedDomains();
+          const isAllowed = domains.some(domain => s.user.email.toLowerCase().endsWith(domain));
+          
+          if (!isAllowed) {
             console.error("AuthContext: Unauthorized domain:", s.user.email);
             // Sign out immediately if domain is not allowed
             supabase.auth.signOut();
@@ -151,8 +162,10 @@ export function AuthProvider({ children }) {
   };
 
   const signUpWithEmail = async (email, password, fullName) => {
-    if (!email.endsWith("@prosper-mfg.com")) {
-      return { error: { message: "Solo se permiten correos con el dominio @prosper-mfg.com" } };
+    const domains = await getTrustedDomains();
+    const isAllowed = domains.some(domain => email.toLowerCase().endsWith(domain));
+    if (!isAllowed) {
+      return { error: { message: `Solo se permiten correos de los siguientes dominios: ${domains.join(", ")}` } };
     }
     const { error } = await supabase.auth.signUp({
       email,
