@@ -25,6 +25,7 @@ export default function AccessControl() {
   const { showToast } = useApp();
   const [activeTab, setActiveTab] = useState("alta"); // alta, actualizacion, directa, baja, directorio
   const [loading, setLoading] = useState(false);
+  const [lastModifiedUserId, setLastModifiedUserId] = useState(null);
 
   // Directory State
   const [directoryUsers, setDirectoryUsers] = useState([]);
@@ -118,6 +119,23 @@ export default function AccessControl() {
       fetchDirectory();
     }
   }, [activeTab]);
+
+  // Scroll to last modified user
+  useEffect(() => {
+    if (activeTab === "directorio" && !loadingDirectory && lastModifiedUserId) {
+      // Small timeout to ensure DOM is fully updated
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`user-row-${lastModifiedUserId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // We keep the ID for a moment to allow highlighting, but we can clear it 
+          // if we want the highlight to be temporary. 
+          // For now let's keep it until next tab change.
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, loadingDirectory, lastModifiedUserId]);
 
   const handleExportCSV = () => {
     if (directoryUsers.length === 0) return;
@@ -445,10 +463,12 @@ export default function AccessControl() {
       if (reqError) throw reqError;
 
       showToast("Accesos asignados correctamente.", "success");
+      const modifiedId = foundUser.id;
       setSelectedDoors([]);
       setActPuesto("");
       setFoundUser(null);
       setSearchQuery("");
+      setLastModifiedUserId(modifiedId);
       setActiveTab("directorio"); 
       
     } catch (err) {
@@ -907,7 +927,13 @@ export default function AccessControl() {
                         (u.full_name || "").toLowerCase().includes(dirSearchQuery.toLowerCase())
                       )
                       .map((user) => (
-                      <tr key={user.id} className="hover:bg-slate-800/50 transition-colors">
+                      <tr 
+                        key={user.id} 
+                        id={`user-row-${user.id}`}
+                        className={`hover:bg-slate-800/50 transition-all duration-500 ${
+                          lastModifiedUserId === user.id ? "bg-emerald-500/10 ring-1 ring-emerald-500/30" : ""
+                        }`}
+                      >
                         <td className="px-6 py-4 font-mono text-blue-400">{user.employee_number}</td>
                         <td className="px-6 py-4 font-mono text-slate-400 text-xs">{user.card_number || "N/A"}</td>
                         <td className="px-6 py-4 text-slate-200 font-medium">
