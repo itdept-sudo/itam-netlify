@@ -93,7 +93,11 @@ export function AppProvider({ children }) {
       ];
       
       // Intentar cargar configs del sistema sin fallar si no existe (por migración pendiente)
-      const settingsPromise = supabase.from("system_settings").select("*");
+      const settingsPromise = fetch("/api/admin-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "getSystemSettings" })
+      }).then(r => r.json()).catch(err => ({ settings: [] }));
       promises.push(settingsPromise);
 
       if (forceMetadata || !brands.length) {
@@ -110,9 +114,9 @@ export function AppProvider({ children }) {
       if (rRes?.data) setRelations(rRes.data);
       if (mvRes?.data) setMovements(mvRes.data);
       
-      if (sysRes?.data) {
+      if (sysRes?.settings) {
         const settingsMap = {};
-        sysRes.data.forEach(s => settingsMap[s.setting_key] = s.setting_value);
+        sysRes.settings.forEach(s => settingsMap[s.setting_key] = s.setting_value);
         setSystemSettings(settingsMap);
       }
       
@@ -597,12 +601,19 @@ export function AppProvider({ children }) {
   };
 
   const updateSystemSetting = async (key, value) => {
-    const { error } = await supabase.from("system_settings").upsert(
-      { setting_key: key, setting_value: value },
-      { onConflict: "setting_key" }
-    );
-    if (error) { showToast(error.message, "error"); return; }
-    setSystemSettings(prev => ({ ...prev, [key]: value }));
+    try {
+      const res = await fetch("/api/admin-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "updateSystemSetting", key, value })
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Error al actualizar configuración");
+      
+      setSystemSettings(prev => ({ ...prev, [key]: value }));
+    } catch (err) {
+      showToast(err.message, "error");
+    }
   };
 
   useEffect(() => {

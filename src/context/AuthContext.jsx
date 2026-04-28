@@ -15,14 +15,18 @@ export function AuthProvider({ children }) {
   const getTrustedDomains = async () => {
     if (trustedDomainsCache.current) return trustedDomainsCache.current;
     try {
-      const { data } = await supabase.from('system_settings').select('setting_value').eq('setting_key', 'trusted_domains').single();
-      if (data?.setting_value) {
-        const domains = data.setting_value.split(',').map(d => d.trim().toLowerCase());
-        trustedDomainsCache.current = domains;
-        return domains;
+      const res = await fetch("/api/admin-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "getTrustedDomains" })
+      });
+      const data = await res.json();
+      if (data.domains) {
+        trustedDomainsCache.current = data.domains;
+        return data.domains;
       }
     } catch (err) {
-      console.warn("AuthContext: Error fetching trusted domains", err);
+      console.warn("AuthContext: Error fetching trusted domains from API", err);
     }
     const fallback = ['@prosper-mfg.com'];
     trustedDomainsCache.current = fallback;
@@ -157,12 +161,15 @@ export function AuthProvider({ children }) {
   }, [fetchProfile]);
 
   const signInWithGoogle = async () => {
+    const domains = await getTrustedDomains();
+    const primaryDomain = domains[0]?.replace('@', '') || 'prosper-mfg.com';
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: window.location.origin,
         queryParams: {
-          hd: 'prosper-mfg.com' // Suggests the domain in the Google picker
+          hd: primaryDomain
         }
       },
     });

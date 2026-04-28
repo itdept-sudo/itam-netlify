@@ -164,6 +164,39 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: "Cuenta de autenticación eliminada." });
     }
 
+    // 5. Update System Setting
+    if (action === "updateSystemSetting") {
+      const { key, value } = req.body;
+      if (!key) return res.status(400).json({ error: "Falta la clave de configuración." });
+
+      const { data, error } = await supabase.from("system_settings").upsert(
+        { setting_key: key, setting_value: value },
+        { onConflict: "setting_key" }
+      ).select();
+
+      if (error) throw error;
+      return res.status(200).json({ success: true, data });
+    }
+
+    // 6. Get Trusted Domains
+    if (action === "getTrustedDomains") {
+      const { data, error } = await supabase.from('system_settings').select('setting_value').eq('setting_key', 'trusted_domains').single();
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      let domains = ['@prosper-mfg.com'];
+      if (data?.setting_value) {
+        domains = data.setting_value.split(',').map(d => d.trim().toLowerCase());
+      }
+      return res.status(200).json({ domains });
+    }
+
+    // 7. Get All System Settings
+    if (action === "getSystemSettings") {
+      const { data, error } = await supabase.from("system_settings").select("*");
+      if (error) throw error;
+      return res.status(200).json({ settings: data });
+    }
+
     return res.status(400).json({ error: "Acción no reconocida." });
 
   } catch (err) {
