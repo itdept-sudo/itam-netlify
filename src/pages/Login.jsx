@@ -116,6 +116,15 @@ export default function LoginPage() {
     setTicketForm(p => ({ ...p, photos: p.photos.filter((_, i) => i !== idx) }));
   };
 
+  const isPasswordSecure = (pass) => {
+    const minLength = pass.length >= 8;
+    const hasUpper = /[A-Z]/.test(pass);
+    const hasLower = /[a-z]/.test(pass);
+    const hasNumber = /[0-9]/.test(pass);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(pass);
+    return minLength && hasUpper && hasLower && hasNumber && hasSpecial;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -124,6 +133,11 @@ export default function LoginPage() {
 
     if (mode === "signup") {
       if (!fullName.trim()) { setError(t("fullName")); setLoading(false); return; }
+      if (!isPasswordSecure(password)) {
+        setError("La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.");
+        setLoading(false);
+        return;
+      }
       const { error: err } = await signUpWithEmail(email, password, fullName);
       if (err) { setError(err.message); } else { setSuccess(t("confirmEmail")); }
     } else {
@@ -224,10 +238,15 @@ export default function LoginPage() {
                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
                     type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                    placeholder={t("password")} required minLength={6}
+                    placeholder={t("password")} required minLength={8}
                     className="w-full pl-10 pr-4 py-3 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20"
                   />
                 </div>
+                {mode === "signup" && (
+                  <p className="text-[10px] text-slate-500 px-1">
+                    Min. 8 carácteres, Mayús, Min, Núm y Símbolo.
+                  </p>
+                )}
 
                 {error && (
                   <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">

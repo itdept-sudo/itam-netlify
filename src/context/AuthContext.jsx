@@ -182,6 +182,11 @@ export function AuthProvider({ children }) {
   };
 
   const signUpWithEmail = async (email, password, fullName) => {
+    // 1. Restriction: Prosper users MUST use Google
+    if (email.toLowerCase().endsWith("@prosper-mfg.com")) {
+      return { error: { message: "Los usuarios de @prosper-mfg.com deben iniciar sesión con Google por seguridad." } };
+    }
+
     const domains = await getTrustedDomains();
     const isAllowed = domains.some(domain => email.toLowerCase().endsWith(domain));
     if (!isAllowed) {
