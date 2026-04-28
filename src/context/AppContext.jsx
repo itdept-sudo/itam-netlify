@@ -597,7 +597,10 @@ export function AppProvider({ children }) {
   };
 
   const updateSystemSetting = async (key, value) => {
-    const { error } = await supabase.from("system_settings").upsert({ setting_key: key, setting_value: value });
+    const { error } = await supabase.from("system_settings").upsert(
+      { setting_key: key, setting_value: value },
+      { onConflict: "setting_key" }
+    );
     if (error) { showToast(error.message, "error"); return; }
     setSystemSettings(prev => ({ ...prev, [key]: value }));
   };

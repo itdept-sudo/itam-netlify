@@ -10,14 +10,23 @@ export function AuthProvider({ children }) {
   const profileIdRef = useRef(null);
   const fetchingProfileRef = useRef(null);
 
+  const trustedDomainsCache = useRef(null);
+
   const getTrustedDomains = async () => {
+    if (trustedDomainsCache.current) return trustedDomainsCache.current;
     try {
       const { data } = await supabase.from('system_settings').select('setting_value').eq('setting_key', 'trusted_domains').single();
       if (data?.setting_value) {
-        return data.setting_value.split(',').map(d => d.trim().toLowerCase());
+        const domains = data.setting_value.split(',').map(d => d.trim().toLowerCase());
+        trustedDomainsCache.current = domains;
+        return domains;
       }
-    } catch (err) {}
-    return ['@prosper-mfg.com'];
+    } catch (err) {
+      console.warn("AuthContext: Error fetching trusted domains", err);
+    }
+    const fallback = ['@prosper-mfg.com'];
+    trustedDomainsCache.current = fallback;
+    return fallback;
   };
 
   const fetchProfile = useCallback(async (userId, retries = 3) => {
@@ -79,6 +88,10 @@ export function AuthProvider({ children }) {
   
   useEffect(() => {
     let isMounted = true;
+    
+    // Warm domains cache early
+    getTrustedDomains();
+
     console.log("AuthContext: Starting unified initialization (Listener only)...");
 
     const safetyTimer = setTimeout(() => {
