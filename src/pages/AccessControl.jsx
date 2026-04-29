@@ -960,7 +960,7 @@ export default function AccessControl() {
                         {profile?.role === 'admin' && (
                           <td className="px-6 py-4 text-right">
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 setActiveTab("directa");
                                 setSearchQuery(user.employee_number);
                                 setFoundUser({
@@ -968,6 +968,34 @@ export default function AccessControl() {
                                   sourceType: user.role === 'produccion' ? 'production' : 'system'
                                 });
                                 setSelectedDoors(user.activeDoors);
+                                setExistingDoors(user.activeDoors);
+                                setActCardNumber(user.card_number || "");
+                                setActPuesto(""); // Reset the position input
+                                
+                                // Calcular historial de tarjetas
+                                let history = [];
+                                if (user.card_number) {
+                                  history.push({ card: user.card_number, date: user.created_at, label: "Original" });
+                                }
+                                if (user.access_requests) {
+                                  const sortedReqs = [...user.access_requests].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                                  sortedReqs.forEach(req => {
+                                    if (req.status === 'Aprobado' && req.it_requirements) {
+                                      const cardReq = req.it_requirements.find(it => it.startsWith("TARJETA:"));
+                                      if (cardReq) {
+                                        history.push({ card: cardReq.split(":")[1], date: req.updated_at || req.created_at, label: "Solicitud " + req.request_type });
+                                      }
+                                    }
+                                  });
+                                }
+                                setCardHistory(history.reverse());
+
+                                // Fetch assigned items in case they switch to the Baja tab
+                                const { data: itemsFound } = await supabase
+                                  .from("items")
+                                  .select(`*, models(name, photo)`)
+                                  .eq("user_id", user.id);
+                                if (itemsFound) setAssignedItems(itemsFound);
                               }}
                               className="p-2 hover:bg-slate-700 rounded-lg text-emerald-500 transition-colors"
                               title="Asignación Rápida"
