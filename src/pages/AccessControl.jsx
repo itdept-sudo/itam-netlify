@@ -3,6 +3,8 @@ import { UserPlus, UserCog, UserMinus, Search, Mail, Loader2, CheckCircle, Shiel
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { useApp } from "../context/AppContext";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const DOORS = [
   "Art Room",
@@ -162,6 +164,39 @@ export default function AccessControl() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleExportPDF = () => {
+    if (directoryUsers.length === 0) return;
+
+    const doc = new jsPDF();
+    
+    doc.setFontSize(14);
+    doc.text("Reporte de Accesos (Producción)", 14, 20);
+    
+    doc.setFontSize(10);
+    doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 28);
+
+    const headers = [["N° Empleado", "N° Tarjeta", "Nombre", "Departamento", "Estado", "Accesos Vigentes"]];
+    const rows = directoryUsers.map(u => [
+      u.employee_number || "",
+      u.card_number || "N/A",
+      u.full_name || `${u.first_name || ""} ${u.last_name_paternal || ""}`.trim(),
+      u.department || "",
+      u.isActive ? 'Activo' : 'Baja',
+      (u.activeDoors || []).join(', ')
+    ]);
+
+    autoTable(doc, {
+      head: headers,
+      body: rows,
+      startY: 35,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [16, 185, 129] },
+    });
+
+    doc.save(`Reporte_Accesos_Produccion_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const handleSearch = async (e) => {
@@ -894,12 +929,20 @@ export default function AccessControl() {
                 onChange={e => setDirSearchQuery(e.target.value)}
                 className="w-full max-w-xs bg-transparent border-none text-slate-200 text-sm focus:outline-none"
               />
-              <button
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
-              >
-                <Download size={16} /> Exportar CSV
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+                >
+                  <Download size={16} /> Exportar CSV
+                </button>
+                <button
+                  onClick={handleExportPDF}
+                  className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+                >
+                  <Download size={16} /> Exportar PDF
+                </button>
+              </div>
             </div>
 
             {loadingDirectory ? (
