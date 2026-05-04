@@ -1,11 +1,11 @@
 import {
   Monitor, LayoutDashboard, Boxes, Cpu, UserCheck, Users,
-  Link2, TicketCheck, ChevronRight, ChevronDown, LogOut, Inbox, Languages, Search, Key, Wrench
+  Link2, TicketCheck, ChevronRight, ChevronDown, LogOut, Inbox, Languages, Search, Key, Wrench, Shield
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useApp } from "../context/AppContext";
 
-export function getNavItems(isAdmin, isRRHH, t) {
+export function getNavItems(isAdmin, isRRHH, isSecurity, t) {
   const ADMIN_NAV = [
     { id: "dashboard", label: t("dashboard"), icon: LayoutDashboard },
     { id: "inventory", label: t("inventory"), icon: Boxes },
@@ -24,19 +24,28 @@ export function getNavItems(isAdmin, isRRHH, t) {
     { id: "portal", label: t("myTickets"), icon: Inbox },
   ];
 
+  const SECURITY_NAV = [
+    { id: "lookup", label: t("employeeLookup"), icon: Search },
+    { id: "access", label: t("accessControl"), icon: Key },
+    { id: "security_portal", label: "Gestión Accesos", icon: Shield },
+
+    { id: "portal", label: t("myTickets"), icon: Inbox },
+  ];
+
   const USER_NAV = [
     { id: "portal", label: t("myTickets"), icon: Inbox },
   ];
 
   if (isAdmin) return ADMIN_NAV;
+  if (isSecurity) return SECURITY_NAV;
   if (isRRHH) return RRHH_NAV;
   return USER_NAV;
 }
 
 export default function Sidebar({ active, onChange, collapsed, onToggle, isOpen, onClose }) {
-  const { isAdmin, isRRHH, profile, signOut } = useAuth();
+  const { isAdmin, isRRHH, isSecurity, profile, signOut } = useAuth();
   const { t, language, toggleLanguage } = useApp();
-  const navItems = getNavItems(isAdmin, isRRHH, t);
+  const navItems = getNavItems(isAdmin, isRRHH, isSecurity, t);
 
   const getAvatar = () => {
     if (profile?.avatar_url) return <img src={profile.avatar_url} alt="" className="w-full h-full object-cover rounded-lg" />;
@@ -98,7 +107,7 @@ export default function Sidebar({ active, onChange, collapsed, onToggle, isOpen,
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-slate-200 truncate">{profile.full_name}</p>
               <p className="text-[10px] text-slate-500 truncate">
-                {isAdmin ? t("admin") : isRRHH ? t("rrhh") : t("user")}
+                {isAdmin ? t("admin") : isSecurity ? "Seguridad" : isRRHH ? t("rrhh") : t("user")}
               </p>
             </div>
           </div>

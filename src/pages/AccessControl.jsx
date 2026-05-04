@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { UserPlus, UserCog, UserMinus, Search, Mail, Loader2, CheckCircle, ShieldAlert, List, Download, AlertTriangle } from "lucide-react";
+import { UserPlus, UserCog, UserMinus, Search, Mail, Loader2, CheckCircle, ShieldAlert, List, Download, AlertTriangle, Upload, Eye, FileCheck } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { useApp } from "../context/AppContext";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { generateAccessFormatPDF } from "../utils/pdfFormatGenerator";
 
 const DOORS = [
   "Art Room",
@@ -294,6 +295,48 @@ export default function AccessControl() {
       setIsSearching(false);
     }
   };
+  const handleUploadSignedFormat = async (requestId, file) => {
+    if (!file) return;
+    setLoading(true);
+    try {
+      const fileName = `signed_${requestId}_${Date.now()}.pdf`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("signed-access-formats")
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("signed-access-formats")
+        .getPublicUrl(uploadData.path);
+
+      const { error: updateError } = await supabase
+        .from("access_requests")
+        .update({ signed_format_url: publicUrl })
+        .eq("id", requestId);
+
+      if (updateError) throw updateError;
+
+      // Actualizar estado local para mostrar el nuevo archivo
+      setFoundUser(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          access_requests: prev.access_requests.map(req => 
+            req.id === requestId ? { ...req, signed_format_url: publicUrl } : req
+          )
+        };
+      });
+
+      showToast("Formato firmado cargado exitosamente.", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Error al cargar el formato.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const handleAlta = async (e) => {
     e.preventDefault();
@@ -771,6 +814,53 @@ export default function AccessControl() {
                   <div><span className="text-slate-500 block">Origen</span> <span className="text-slate-400 uppercase text-[10px] bg-slate-800 px-2 py-0.5 rounded">{foundUser.sourceType === 'production' ? 'Producción' : 'Sistema'}</span></div>
                   <div><span className="text-slate-500 block">Departamento</span> <span className="text-slate-200">{foundUser.department}</span></div>
                 </div>
+
+                {foundUser.access_requests && foundUser.access_requests.some(req => req.status === 'Aprobado' && (req.request_type === 'Alta' || req.request_type === 'Actualizacion')) && (
+                  <div className="mb-6 pt-4 border-t border-slate-800">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-3">Historial de Formatos de Acceso (FT-SP-PP-001)</label>
+                    <div className="flex flex-wrap gap-3">
+                      {foundUser.access_requests
+                        .filter(req => req.status === 'Aprobado' && (req.request_type === 'Alta' || req.request_type === 'Actualizacion'))
+                        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                        .map(req => (
+                          <div key={req.id} className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => generateAccessFormatPDF(foundUser, req)}
+                              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                              title="Generar formato para imprimir"
+                            >
+                              <Download size={14} className="text-red-400" />
+                              {req.request_type} - {new Date(req.created_at).toLocaleDateString()}
+                            </button>
+                            
+                            {req.signed_format_url ? (
+                              <a
+                                href={req.signed_format_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-400 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                              >
+                                <FileCheck size={14} />
+                                Ver Firmado
+                              </a>
+                            ) : (
+                              <label className="flex items-center gap-2 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/20 text-blue-400 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer">
+                                <Upload size={14} />
+                                Subir Firmado
+                                <input 
+                                  type="file" 
+                                  accept=".pdf" 
+                                  className="hidden" 
+                                  onChange={(e) => handleUploadSignedFormat(req.id, e.target.files[0])} 
+                                />
+                              </label>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
 
                 {activeTab === "directa" && (
                   <div className="space-y-4 pt-4 border-t border-slate-800">

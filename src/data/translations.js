@@ -156,11 +156,15 @@ export const translations = {
     adminDescription: "Acceso completo a inventario, modelos, asignaciones, usuarios y bandeja de tickets.",
     userDescription: "Solo puede crear tickets, ver sus tickets y dar seguimiento.",
     rrhhDescription: "Acceso al buscador de activos por empleado para procesos de baja o auditoría.",
+    seguridadDescription: "Encargado de autorizar solicitudes de acceso fuera del estándar y gestionar firmas.",
+
     employeeLookup: "Buscador de Empleados",
     searchByEmployee: "Buscar por nombre o número de empleado...",
     assetsAssignedTo: "Activos asignados a {{name}}",
     rrhhAccount: "Cuenta de RRHH",
     rrhh: "Recursos Humanos",
+    seguridad: "Seguridad",
+
     mandatoryFields: "Nombres, apellidos, email y contraseña son obligatorios.",
     passwordLength: "La contraseña debe tener al menos 6 caracteres.",
     userCreated: "Usuario creado exitosamente.",
@@ -433,11 +437,15 @@ export const translations = {
     adminDescription: "Full access to inventory, models, assignments, users, and tickets.",
     userDescription: "Can only create and track their own tickets.",
     rrhhDescription: "Access to employee asset lookup for offboarding or audits.",
+    seguridadDescription: "Responsible for authorizing non-standard access requests and managing signatures.",
+
     employeeLookup: "Employee Lookup",
     searchByEmployee: "Search by name or employee number...",
     assetsAssignedTo: "Assets assigned to {{name}}",
     rrhhAccount: "HR Account",
     rrhh: "Human Resources",
+    seguridad: "Security",
+
     mandatoryFields: "First name, last name, email, and password are required.",
     passwordLength: "Password must be at least 6 characters.",
     userCreated: "User created successfully.",

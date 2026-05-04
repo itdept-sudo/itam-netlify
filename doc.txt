@@ -1,0 +1,73 @@
+﻿FORMATO: FT-SP-PP-001
+	Revisión: A
+	Título: Solicitud de acceso a áreas restringidas.
+	Aprobado por: Ángel Cruz / Gerente de planta Prosper Manufacturing / Yamil Morales / Director General
+	Elaborado por:
+	Rev
+	Fecha
+	Rubén Romero Moya
+	A
+	Enero/20/2025
+	Llenado por requisitor de acceso a área restringida
+	acceso a área restringida:
+	<<Acceso Vigentes>>
+	Departamento:
+	<<Departamento>>
+	Fecha:
+	<<Fecha>>
+	Describa el motivo que requiere acceso al área
+restringida:
+	<<Acceso Vigentes>>
+	Nombre de quien autoriza
+acceso:
+	Angel Cruz
+	
+
+Seleccione el área restringida a ingresar:
+	
+
+  
+
+	
+
+Firma de quien autoriza acceso:
+	
+
+	
+
+
+
+
+
+Leer aviso de confidencialidad:
+	
+
+
+
+En caso de obtener acceso a áreas restringidas, el requisitor del acceso hará uso correcto del control brindado, en ningún momento prestará controles de acceso a otro personal; el hacer un mal uso de la información podría aplicar una acción disciplinaria.
+	Nombre del Requisitor:
+	<<Nombre>>
+	Firma del requisitor:
+	
+
+	Empleado #:
+	<<Numero de Empleado>>
+	Llenado por seguridad patrimonial
+	Acceso brindado al área
+restringida:
+	Descripción del acceso que tendrá el asociado:
+	Facial  
+	<<Acceso Vigentes>>
+	Huella dactilar  
+	Tarjeta digital  
+	Clave  
+	Chaleco  
+	Nombre de quien brinda el acceso
+	Ruben Romero Moya
+	Puesto de trabajo
+	
+
+	Firma:
+	
+
+	Llave

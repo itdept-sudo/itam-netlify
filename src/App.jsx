@@ -18,6 +18,8 @@ import RRHHPortal from "./pages/RRHHPortal";
 import AccessControl from "./pages/AccessControl";
 import ApproveAccess from "./pages/ApproveAccess";
 import MaintenanceReport from "./pages/MaintenanceReport";
+import SecurityPortal from "./pages/SecurityPortal";
+
 
 const adminPages = {
   dashboard: Dashboard,
@@ -37,12 +39,20 @@ const rrhhPages = {
   access: AccessControl,
 };
 
+const securityPages = {
+  lookup: RRHHPortal,
+  access: AccessControl,
+  security_portal: SecurityPortal,
+  portal: UserPortal,
+};
+
+
 const userPages = {
   portal: UserPortal,
 };
 
 function AppShell() {
-  const { isAdmin, isRRHH, profile } = useAuth();
+  const { isAdmin, isRRHH, isSecurity, profile } = useAuth();
   const appContext = useApp();
   // Safe access to prevent black screen if provider is in transition
   const unreadNotifications = appContext?.unreadNotifications || [];
@@ -55,9 +65,10 @@ function AppShell() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [page, setPage] = useState(() => {
     const path = window.location.pathname.substring(1);
-    if (path && (Object.keys(adminPages).includes(path) || Object.keys(userPages).includes(path) || Object.keys(rrhhPages).includes(path))) {
+    if (path && (Object.keys(adminPages).includes(path) || Object.keys(userPages).includes(path) || Object.keys(rrhhPages).includes(path) || Object.keys(securityPages).includes(path))) {
       return path;
     }
+
     const params = new URLSearchParams(window.location.search);
     if (params.has("item")) return "inventory";
     return null;
@@ -69,7 +80,7 @@ function AppShell() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname.substring(1);
-      if (path && (Object.keys(adminPages).includes(path) || Object.keys(userPages).includes(path) || Object.keys(rrhhPages).includes(path))) {
+      if (path && (Object.keys(adminPages).includes(path) || Object.keys(userPages).includes(path) || Object.keys(rrhhPages).includes(path) || Object.keys(securityPages).includes(path))) {
         setPage(path);
       } else {
         const params = new URLSearchParams(window.location.search);
@@ -85,21 +96,25 @@ function AppShell() {
     setPage((prev) => {
       const validPages = isAdmin 
         ? Object.keys(adminPages) 
+        : isSecurity
+        ? Object.keys(securityPages)
         : isRRHH 
         ? Object.keys(rrhhPages) 
         : Object.keys(userPages);
         
       if (!prev || !validPages.includes(prev)) {
-        return isAdmin ? "dashboard" : isRRHH ? "lookup" : "portal";
+        return isAdmin ? "dashboard" : isSecurity ? "security_portal" : isRRHH ? "lookup" : "portal";
       }
       return prev;
-    });
-  }, [isAdmin, isRRHH]);
 
-  const pages = isAdmin ? adminPages : isRRHH ? rrhhPages : userPages;
-  const navItems = getNavItems(isAdmin, isRRHH, t);
-  const currentPage = page || (isAdmin ? "dashboard" : isRRHH ? "lookup" : "portal");
-  const Page = pages[currentPage] || (isAdmin ? Dashboard : isRRHH ? RRHHPortal : UserPortal);
+    });
+  }, [isAdmin, isRRHH, isSecurity]);
+
+  const pages = isAdmin ? adminPages : isSecurity ? securityPages : isRRHH ? rrhhPages : userPages;
+  const navItems = getNavItems(isAdmin, isRRHH, isSecurity, t);
+  const currentPage = page || (isAdmin ? "dashboard" : isSecurity ? "security_portal" : isRRHH ? "lookup" : "portal");
+  const Page = pages[currentPage] || (isAdmin ? Dashboard : isSecurity ? SecurityPortal : isRRHH ? RRHHPortal : UserPortal);
+
   const currentNav = navItems.find((n) => n.id === currentPage) || navItems[0];
 
   const getInitials = () => {
@@ -225,11 +240,14 @@ function AppShell() {
             <div className="flex items-center gap-2">
               <div
                 className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-white overflow-hidden ${
-                  isAdmin
+                    isAdmin
                     ? "bg-gradient-to-br from-blue-500 to-violet-600"
+                    : isSecurity
+                    ? "bg-gradient-to-br from-amber-500 to-orange-600"
                     : isRRHH
                     ? "bg-gradient-to-br from-emerald-500 to-teal-600"
                     : "bg-gradient-to-br from-blue-500 to-cyan-500"
+
                 }`}
               >
                 {profile?.avatar_url ? (
@@ -247,7 +265,7 @@ function AppShell() {
                   {profile?.full_name || "..."}
                 </p>
                 <p className="text-[10px] text-slate-500">
-                  {isAdmin ? t("admin") : isRRHH ? t("rrhh") : t("user")}
+                  {isAdmin ? t("admin") : isSecurity ? "Seguridad" : isRRHH ? t("rrhh") : t("user")}
                 </p>
               </div>
             </div>

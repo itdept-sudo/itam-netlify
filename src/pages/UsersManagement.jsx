@@ -412,9 +412,10 @@ export default function UsersView() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <Badge color={u.role === "admin" ? "purple" : u.role === "produccion" ? "emerald" : "gray"}>
-                  {u.role === "admin" ? <><ShieldCheck size={11} /> {t("admin")}</> : u.role === "produccion" ? "Producción" : t("user")}
+                <Badge color={u.role === "admin" ? "purple" : u.role === "seguridad" ? "yellow" : u.role === "produccion" ? "emerald" : "gray"}>
+                  {u.role === "admin" ? <><ShieldCheck size={11} /> {t("admin")}</> : u.role === "seguridad" ? t("seguridad") : u.role === "produccion" ? "Producción" : t("user")}
                 </Badge>
+
                 <div className="text-right hidden sm:block">
                   <p className="text-xs text-slate-400">{t("assetsCount").replace("{{count}}", userItems.length)}</p>
                   <p className="text-xs text-slate-500">{t("ticketsCount").replace("{{count}}", userTickets.length)}</p>
@@ -453,7 +454,9 @@ export default function UsersView() {
             options={[
               { value: "user", label: t("standardUsersStat").slice(0,-1) }, 
               { value: "rrhh", label: t("rrhh") },
+              { value: "seguridad", label: t("seguridad") },
               { value: "admin", label: t("admin") }
+
             ]} 
             value={form.role} 
             onChange={e => setForm(p => ({ ...p, role: e.target.value }))} 
@@ -466,8 +469,12 @@ export default function UsersView() {
               <strong>{t("rrhh")}:</strong> {t("rrhhDescription")}
             </p>
             <p className="text-xs text-amber-400 mt-1">
+              <strong>{t("seguridad")}:</strong> {t("seguridadDescription")}
+            </p>
+            <p className="text-xs text-amber-400 mt-1">
               <strong>{t("user")}:</strong> {t("userDescription")}
             </p>
+
           </div>
           <div className="flex justify-between items-center pt-2">
             <div className="flex gap-2">
@@ -547,7 +554,9 @@ export default function UsersView() {
             options={[
               { value: "user", label: "Usuario Estándar" }, 
               { value: "rrhh", label: "Recursos Humanos" },
+              { value: "seguridad", label: "Seguridad" },
               { value: "admin", label: "Administrador" }
+
             ]} 
             value={elevateForm.role} 
             onChange={e => setElevateForm(p => ({ ...p, role: e.target.value }))} 
@@ -577,7 +586,8 @@ export default function UsersView() {
                   <p className="text-sm text-slate-500">{detailUser.email}</p>
                   <p className="text-xs font-mono text-slate-500 mt-1">{detailUser.employee_number ? `No. Empleado: ${detailUser.employee_number}` : ""}</p>
                   <div className="flex gap-2 mt-2">
-                    <Badge color={detailUser.role === "admin" ? "purple" : "gray"}>{t(detailUser.role)}</Badge>
+                    <Badge color={detailUser.role === "admin" ? "purple" : detailUser.role === "seguridad" ? "yellow" : "gray"}>{t(detailUser.role)}</Badge>
+
                     {detailUser.department && <Badge color="blue">{detailUser.department}</Badge>}
                     {detailUser.is_active === false && <Badge color="red">{t("inactive")}</Badge>}
                   </div>
@@ -648,7 +658,9 @@ export default function UsersView() {
             options={[
               { value: "user", label: t("standardUsersStat").slice(0,-1) }, 
               { value: "rrhh", label: t("rrhh") },
+              { value: "seguridad", label: t("seguridad") },
               { value: "admin", label: t("admin") }
+
             ]} 
             value={createForm.role} 
             onChange={e => setCreateForm(p => ({ ...p, role: e.target.value }))} 

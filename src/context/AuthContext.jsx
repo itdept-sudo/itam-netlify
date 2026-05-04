@@ -231,6 +231,7 @@ export function AuthProvider({ children }) {
 
   const isAdmin = profile?.role === "admin";
   const isRRHH = profile?.role === "rrhh";
+  const isSecurity = profile?.role === "seguridad";
 
   return (
     <AuthContext.Provider
@@ -241,6 +242,7 @@ export function AuthProvider({ children }) {
         loading,
         isAdmin,
         isRRHH,
+        isSecurity,
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,
