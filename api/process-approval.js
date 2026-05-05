@@ -71,12 +71,17 @@ export default async function handler(req, res) {
         : "";
         
       const description = `
-SOLICITUD DE ACCESO AUTORIZADA (Unificada)
+SOLICITUD DE ACCESO AUTORIZADA
 ==========================================
 Tipo: ${request.request_type}
-Empleado: ${u?.full_name || u?.first_name || 'N/A'} ${u?.last_name_paternal || ''} (#${u?.employee_number || 'N/A'})
+Nombre: ${u?.first_name || 'N/A'}
+Apellido Paterno: ${u?.last_name_paternal || 'N/A'}
+Apellido Materno: ${u?.last_name_maternal || 'N/A'}
+No. Empleado: #${u?.employee_number || 'N/A'}
 Departamento: ${u?.department || 'N/A'}
 Puesto Encargado: ${request.puesto_encargado || "N/A"}
+No. Tarjeta: ${u?.card_number || "N/A"}
+
 Puertas: ${doorsStr}${itReqStr}
 
 Nota: Este ticket fue generado automáticamente tras la aprobación vía correo electrónico por ${request.requester?.full_name || 'Sistema'}.

@@ -391,9 +391,24 @@ export default function AccessControl() {
 
       // 3. Notify IT: Create ticket if auto-approved, otherwise send approval email
       if (isAutoApproved) {
+        const description = `
+ALTA DE USUARIO - ACCESO BÁSICO (Auto-aprobado)
+==============================================
+Nombre: ${user.first_name}
+Apellido Paterno: ${user.last_name_paternal}
+Apellido Materno: ${user.last_name_maternal || 'N/A'}
+No. Empleado: #${user.employee_number}
+Departamento: ${user.department}
+Puesto: ${altaPuesto || 'N/A'}
+No. Tarjeta: ${user.card_number || 'N/A'}
+
+Accesos: Entrada Personal (Por defecto)
+Requerimientos IT: Ninguno
+        `.trim();
+
         await supabase.from("tickets").insert({
           title: `⚙️ IT/Alta: ${user.full_name} (#${user.employee_number})`,
-          description: `Alta de usuario de producción con acceso básico (Entrada Personal).\nDepartamento: ${user.department}\nPuesto: ${altaPuesto || 'N/A'}`,
+          description,
           user_id: profile.id,
           status: "Abierto"
         });
@@ -406,7 +421,7 @@ export default function AccessControl() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            employeeName: `${user.first_name} ${user.last_name_paternal}`,
+            employeeName: `${user.first_name} ${user.last_name_paternal} ${user.last_name_maternal || ''}`.trim(),
             employeeNumber: user.employee_number,
             cardNumber: user.card_number,
             department: user.department,
@@ -485,7 +500,7 @@ export default function AccessControl() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeName: `${foundUser.first_name} ${foundUser.last_name_paternal}`,
+          employeeName: `${foundUser.first_name} ${foundUser.last_name_paternal} ${foundUser.last_name_maternal || ''}`.trim(),
           employeeNumber: foundUser.employee_number,
           cardNumber: actCardNumber !== foundUser.card_number ? actCardNumber : foundUser.card_number,
           department: foundUser.department,
@@ -593,8 +608,12 @@ export default function AccessControl() {
       }
 
       // 2. Crear el Ticket para IT indicando la recuperación de equipo
-      let description = `Baja de Usuario (${isSystemUser ? 'Personal de Sistema' : 'Personal de Producción'}).\n`;
-      description += `Empleado: ${foundUser.full_name || foundUser.first_name} (#${foundUser.employee_number})\n`;
+      let description = `BAJA DE USUARIO (${isSystemUser ? 'Personal de Sistema' : 'Personal de Producción'})\n`;
+      description += `==========================================\n`;
+      description += `Nombre: ${foundUser.first_name || 'N/A'}\n`;
+      description += `Apellido Paterno: ${foundUser.last_name_paternal || 'N/A'}\n`;
+      description += `Apellido Materno: ${foundUser.last_name_maternal || 'N/A'}\n`;
+      description += `No. Empleado: #${foundUser.employee_number}\n`;
       description += `Departamento: ${foundUser.department}\n\n`;
       
       if (assignedItems.length > 0) {
