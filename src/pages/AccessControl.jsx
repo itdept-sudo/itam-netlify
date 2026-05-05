@@ -415,8 +415,12 @@ export default function AccessControl() {
             itRequirements: altaSelectedIT,
             token: requestToken,
             puestoEncargado: altaPuesto,
-            requesterName: profile.full_name
+            requesterName: profile.full_name,
+            to: (altaSelectedDoors.length > 1 || (altaSelectedDoors.length === 1 && altaSelectedDoors[0] !== "Entrada Personal")) 
+              ? users.filter(u => u.role === 'seguridad' && u.email).map(u => u.email).join(", ") 
+              : null
           })
+
         }).catch(e => console.warn("Correo no enviado:", e));
 
         showToast("Alta registrada. IT será notificado para autorizar los accesos.", "success");
@@ -489,8 +493,10 @@ export default function AccessControl() {
           requestedDoors: selectedDoors,
           token: requestToken,
           puestoEncargado: actPuesto,
-          requesterName: profile.full_name
+          requesterName: profile.full_name,
+          to: users.filter(u => u.role === 'seguridad' && u.email).map(u => u.email).join(", ")
         })
+
       }).catch(e => console.warn("Correo no enviado:", e));
 
       showToast("Actualización solicitada. IT será notificado para autorizar los accesos.", "success");
