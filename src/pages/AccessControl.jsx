@@ -25,7 +25,7 @@ const IT_REQUIREMENTS = [
 
 export default function AccessControl() {
   const { profile } = useAuth();
-  const { showToast } = useApp();
+  const { showToast, users } = useApp();
   const [activeTab, setActiveTab] = useState("alta"); // alta, actualizacion, directa, baja, directorio
   const [loading, setLoading] = useState(false);
   const [lastModifiedUserId, setLastModifiedUserId] = useState(null);
