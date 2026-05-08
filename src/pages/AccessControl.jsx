@@ -496,6 +496,14 @@ Requerimientos IT: Ninguno
       // Enviar correo (no-bloqueante)
       console.log("Enviando correo con token (Act):", requestToken);
 
+      // Check if new non-default doors were added
+      const addedDoors = selectedDoors.filter(d => !existingDoors.includes(d));
+      const requestsNonDefaultDoor = addedDoors.some(d => d !== "Entrada Personal");
+
+      const toEmails = requestsNonDefaultDoor
+        ? users.filter(u => u.role === 'seguridad' && u.email).map(u => u.email).join(", ")
+        : null;
+
       fetch("/api/send-access-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -509,7 +517,7 @@ Requerimientos IT: Ninguno
           token: requestToken,
           puestoEncargado: actPuesto,
           requesterName: profile.full_name,
-          to: users.filter(u => u.role === 'seguridad' && u.email).map(u => u.email).join(", ")
+          to: toEmails
         })
 
       }).catch(e => console.warn("Correo no enviado:", e));
